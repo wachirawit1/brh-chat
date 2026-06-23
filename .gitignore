@@ -1,0 +1,9 @@
+node_modules/
+.env
+public/uploads/*
+!public/uploads/.gitkeep
+.gemini/
+scratch/
+*.log
+.DS_Store
+Thumbs.db

@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="BRH Chat — ระบบแชทสำหรับบุคลากรภายในโรงพยาบาล สื่อสารรวดเร็ว ปลอดภัย และใช้งานง่าย" />
+  <title>BRH Chat — Hospital Staff Messenger</title>
+  <link rel="stylesheet" href="index.css?v=1.4" />
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ======================================
+       LEFT SIDEBAR
+       ====================================== -->
+  <aside class="sidebar" id="sidebar">
+
+    <!-- Brand + User Profile -->
+    <div class="sidebar-header">
+      <div class="sidebar-brand">
+        <div class="brand-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 2h8v6h6v8h-6v6H8v-6H2V8h6z"/>
+          </svg>
+        </div>
+        <div>
+          <h1>BRH <span>Chat</span></h1>
+          <div class="brand-sub">Hospital Staff Messenger</div>
+        </div>
+      </div>
+
+      <!-- Logged-in User Profile -->
+      <div class="user-profile" id="user-profile">
+        <div class="avatar">
+          <div class="avatar-circle avatar-blue" id="my-avatar">--</div>
+          <div class="online-dot"></div>
+        </div>
+        <div class="user-profile-info">
+          <span class="user-profile-name" id="my-name">กำลังโหลด...</span>
+          <span class="user-profile-dept" id="my-dept"></span>
+        </div>
+        <button class="profile-settings-btn" id="btn-profile-settings" title="ตั้งค่าความเชี่ยวชาญ IT" style="display:none; background:none; border:none; color:var(--gray-500); cursor:pointer; padding:5px; margin-right:6px; display:flex; align-items:center; justify-content:center; border-radius:50%; transition:all 0.2s;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
+        <button class="logout-btn" id="btn-logout" title="ออกจากระบบ" aria-label="Logout">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Sidebar Tabs -->
+    <div class="sidebar-tabs" id="sidebar-tabs">
+      <button class="sidebar-tab active" data-tab="chats" id="tab-chats">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        แชท
+      </button>
+      <button class="sidebar-tab" data-tab="itboard" id="tab-itboard">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+        <span id="tab-itboard-label">IT Board</span>
+        <span class="tab-badge" id="itboard-badge" style="display:none;">0</span>
+      </button>
+    </div>
+
+    <!-- Search (for Chats tab) -->
+    <div class="search-container" id="search-container">
+      <input type="text" id="search-input" placeholder="ค้นหาบุคลากร..." autocomplete="off" />
+      <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+    </div>
+
+    <!-- Chat List (Tab: chats) -->
+    <div class="chat-list" id="chat-list">
+      <!-- Populated by JS -->
+    </div>
+
+    <!-- IT Board Panel (Tab: itboard) -->
+    <div class="itboard-panel" id="itboard-panel" style="display:none;">
+      <!-- Create Post Button (for staff) -->
+      <div class="itboard-create" id="itboard-create">
+        <button class="btn-create-post" id="btn-create-post">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          แจ้งปัญหา IT
+        </button>
+      </div>
+      <!-- Posts list -->
+      <div class="itboard-list" id="itboard-list">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ======================================
+       MAIN CHAT WINDOW
+       ====================================== -->
+  <main class="chat-main" id="chat-main">
+
+    <!-- Empty State (no chat selected) -->
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+      </div>
+      <h3>เลือกแชทเพื่อเริ่มสนทนา</h3>
+      <p>คลิกที่รายชื่อด้านซ้ายเพื่อเริ่มแชท</p>
+    </div>
+
+    <!-- Chat View (shown when chat is selected) -->
+    <div class="chat-view" id="chat-view" style="display:none;">
+
+      <!-- Chat Header -->
+      <div class="chat-header" id="chat-header">
+        <div class="chat-header-left">
+          <div class="avatar">
+            <div class="avatar-circle avatar-teal" id="header-avatar">--</div>
+            <div class="online-dot" id="header-online-dot" style="display:none;"></div>
+          </div>
+          <div class="chat-header-info">
+            <h2 id="header-name">
+              <span id="header-name-text"></span>
+              <span class="dept-tag" id="header-dept"></span>
+            </h2>
+            <div class="status-text" id="header-status">ออฟไลน์</div>
+          </div>
+        </div>
+        <div class="chat-header-actions">
+          <button class="header-btn" id="btn-search-msg" title="ค้นหาข้อความ" aria-label="Search messages">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+          </button>
+          <button class="header-btn" id="btn-gallery" title="ห้องสมุดไฟล์" aria-label="Media and files gallery">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+          </button>
+          <button class="header-btn" id="btn-call" title="โทร" aria-label="Voice call">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+            </svg>
+          </button>
+          <button class="header-btn" id="btn-video" title="วิดีโอคอล" aria-label="Video call">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+            </svg>
+          </button>
+          <button class="header-btn" id="btn-info" title="ข้อมูล" aria-label="Info">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      
+      <!-- Message Search Bar (Hidden by default) -->
+      <div class="msg-search-bar" id="msg-search-bar" style="display:none;">
+        <input type="text" id="msg-search-input" placeholder="ค้นหาในแชทนี้..." autocomplete="off" />
+        <button id="btn-close-msg-search" title="ปิดการค้นหา">✕</button>
+      </div>
+
+      <!-- Chat Content Row (Messages + Gallery) -->
+      <div class="chat-content-row" style="display: flex; flex: 1; min-height: 0; overflow: hidden; position: relative;">
+        <!-- Messages -->
+        <div class="messages-area" id="messages-area">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- Sidebar Gallery (Hidden by default) -->
+        <div class="chat-gallery-sidebar" id="chat-gallery-sidebar" style="display: none;">
+          <div class="gallery-header">
+            <h3>ห้องสมุดไฟล์</h3>
+            <button id="btn-close-gallery" title="ปิดคลังไฟล์">✕</button>
+          </div>
+          <div class="gallery-tabs">
+            <button class="gallery-tab active" data-tab="media">รูปภาพ / วิดีโอ</button>
+            <button class="gallery-tab" data-tab="docs">เอกสาร</button>
+          </div>
+          <div class="gallery-content">
+            <div class="gallery-panel active" id="gallery-panel-media">
+              <div class="gallery-grid" id="gallery-grid-media"></div>
+              <div class="gallery-empty" id="gallery-empty-media">ไม่มีรูปภาพหรือวิดีโอ</div>
+            </div>
+            <div class="gallery-panel" id="gallery-panel-docs">
+              <div class="gallery-list" id="gallery-list-docs"></div>
+              <div class="gallery-empty" id="gallery-empty-docs">ไม่มีไฟล์เอกสาร</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Typing Indicator -->
+      <div class="typing-indicator" id="typing-indicator" style="display:none; padding: 0 28px 4px;">
+        <div class="typing-dots">
+          <span></span><span></span><span></span>
+        </div>
+        <span id="typing-name">กำลังพิมพ์...</span>
+      </div>
+
+      <!-- File Preview (before send) -->
+      <div class="file-preview" id="file-preview" style="display:none;">
+        <div class="file-preview-inner">
+          <img id="file-preview-img" src="" alt="Preview" style="display:none;" />
+          <div class="file-preview-video" id="file-preview-video" style="display:none;">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+            <span id="file-preview-video-name"></span>
+          </div>
+          <div class="file-preview-info">
+            <span id="file-preview-name"></span>
+            <span id="file-preview-size"></span>
+          </div>
+          <button class="file-preview-remove" id="file-preview-remove" title="ยกเลิก">✕</button>
+        </div>
+        <div class="upload-progress" id="upload-progress" style="display:none;">
+          <div class="upload-progress-bar" id="upload-progress-bar"></div>
+        </div>
+      </div>
+
+      <!-- Quick Templates (IT Only) -->
+      <div class="quick-templates" id="quick-templates" style="display:none;">
+        <div class="quick-templates-chips" id="quick-templates-chips">
+          <!-- Populated dynamically by JS -->
+        </div>
+        <button class="template-settings-btn" id="btn-template-settings" title="ปรับแต่งข้อความตอบด่วน">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Input Bar -->
+      <div class="input-bar" id="input-bar">
+        <button class="attach-btn" id="btn-attach" title="แนบไฟล์ (รูปภาพ/วิดีโอ/Excel ไม่เกิน 25MB)" aria-label="Attach file">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+          </svg>
+        </button>
+        <!-- Hidden file input -->
+        <input type="file" id="file-input" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,.xls,.xlsx,.csv,audio/*" style="display:none;" />
+        
+        <div class="input-wrapper" id="input-wrapper">
+          <input type="text" id="message-input" placeholder="พิมพ์ข้อความ..." autocomplete="off" />
+        </div>
+        
+        <!-- Recording Timer Overlay -->
+        <div class="recording-overlay" id="recording-overlay" style="display:none;">
+          <div class="recording-dot"></div>
+          <span id="recording-time">0:00</span>
+          <button class="cancel-record-btn" id="btn-cancel-record" title="ยกเลิกอัดเสียง">✕</button>
+        </div>
+
+        <!-- Record Button -->
+        <button class="record-btn" id="btn-record" title="อัดเสียง" aria-label="Record Voice">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="22"/>
+          </svg>
+        </button>
+
+        <button class="send-btn" id="btn-send" title="ส่ง" aria-label="Send message">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        </button>
+      </div>
+
+    </div>
+
+  </main>
+
+</div>
+
+<!-- Image Lightbox -->
+<div class="lightbox" id="lightbox" style="display:none;">
+  <button class="lightbox-close" id="lightbox-close">✕</button>
+  <img id="lightbox-img" src="" alt="Full size image" />
+</div>
+
+<!-- Create IT Post Modal -->
+<div class="modal-overlay" id="modal-create-post" style="display:none;">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+        แจ้งปัญหา IT
+      </h3>
+      <button class="modal-close" id="modal-close-post">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label for="post-title">หัวข้อปัญหา <span class="required">*</span></label>
+        <input type="text" id="post-title" placeholder="เช่น เครื่องปริ้นกระดาษติด, เน็ตหลุด, ลืมรหัสผ่าน..." maxlength="255" />
+      </div>
+      <div class="form-group">
+        <label for="post-description">รายละเอียดเพิ่มเติม</label>
+        <textarea id="post-description" rows="4" placeholder="อธิบายปัญหาเพิ่มเติม เช่น อยู่ตึกไหน ชั้นอะไร เครื่องเลขอะไร..."></textarea>
+      </div>
+      <div class="form-group" id="recommendation-area" style="display:none; background:var(--emerald-50); border: 1px solid var(--emerald-200); border-radius:10px; padding:15px; margin-top:15px;">
+        <h4 style="margin:0 0 10px 0; font-size:13.5px; color:var(--emerald-800); display:flex; align-items:center; gap:8px; font-weight:600;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--emerald-600);">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+          </svg>
+          เจ้าหน้าที่ IT แนะนำสำหรับปัญหานี้
+        </h4>
+        <div id="recommended-staff-list" style="display:flex; flex-direction:column; gap:10px;">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" id="btn-cancel-post">ยกเลิก</button>
+      <button class="btn-primary" id="btn-submit-post">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+        ส่งแจ้งปัญหา
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Customizable Templates Modal -->
+<div class="modal-overlay" id="modal-templates" style="display:none;">
+  <div class="modal-card" style="max-width: 480px;">
+    <div class="modal-header">
+      <h3>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        ปรับแต่งข้อความตอบด่วน
+      </h3>
+      <button class="modal-close" id="modal-close-templates">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group" style="display:flex; gap:10px; margin-bottom:15px; align-items: flex-end;">
+        <div style="flex:1;">
+          <label for="new-template-input">เพิ่มข้อความใหม่</label>
+          <input type="text" id="new-template-input" placeholder="พิมพ์ข้อความตอบด่วน..." maxlength="255" autocomplete="off" />
+        </div>
+        <button class="btn-primary" id="btn-add-template" style="height:44px; padding:0 20px;">
+          เพิ่ม
+        </button>
+      </div>
+      <div class="form-group">
+        <label>รายการข้อความตอบด่วนของคุณ</label>
+        <div class="template-list-manage" id="template-list-manage" style="max-height:240px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; border: 1px solid var(--gray-200); border-radius:8px; padding:10px; background:var(--gray-50);">
+          <!-- Dynamic custom templates list -->
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-primary" id="btn-close-templates-modal" style="width:100%;">ตกลง</button>
+    </div>
+  </div>
+</div>
+
+<!-- Profile Settings Modal -->
+<div class="modal-overlay" id="modal-profile-settings" style="display:none;">
+  <div class="modal-card" style="max-width: 420px;">
+    <div class="modal-header">
+      <h3>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        ตั้งค่าความเชี่ยวชาญ IT
+      </h3>
+      <button class="modal-close" id="modal-close-profile-settings">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size: 13.5px; color: var(--gray-600); margin-bottom: 18px; line-height: 1.5;">
+        พิมพ์ชื่อโปรแกรมหรือความเชี่ยวชาญของคุณ (เช่น HOSxP, PACS, Network) แล้วกด Enter เพื่อให้ระบบแนะนำคุณให้ถูกคน
+      </p>
+      <div class="specialties-tag-container">
+        <div class="tag-input-wrapper">
+          <input type="text" id="specialty-tag-input" placeholder="พิมพ์โปรแกรม/ทักษะ แล้วกด Enter" autocomplete="off" />
+        </div>
+        <div class="specialty-tags-list" id="specialty-tags-list">
+          <!-- Populated by JS -->
+        </div>
+        <div class="suggested-tags">
+          <span class="suggested-tags-title">คำแนะนำที่พบบ่อย:</span>
+          <div class="suggested-tags-list" id="suggested-tags-list">
+            <button class="suggested-tag-btn">HOMC</button>
+            <button class="suggested-tag-btn">PACS</button>
+            <button class="suggested-tag-btn">Hardware</button>
+            <button class="suggested-tag-btn">Network</button>
+            <button class="suggested-tag-btn">SQL</button>
+            <button class="suggested-tag-btn">Report</button>
+            <button class="suggested-tag-btn">LIS</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" id="btn-cancel-profile-settings">ยกเลิก</button>
+      <button class="btn-primary" id="btn-save-profile-settings" style="flex:1;">
+        บันทึกการตั้งค่า
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Socket.io Client -->
+<script src="/socket.io/socket.io.js"></script>
+<script src="app.js?v=1.4"></script>
+</body>
+</html>
