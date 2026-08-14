@@ -49,7 +49,9 @@
   let isRecordingCanceled = false; // Flag to check if recording was canceled
 
   // ----- DOM Refs -----
+  const appEl            = document.getElementById('app');
   const chatListEl       = document.getElementById('chat-list');
+  const btnMobileBack    = document.getElementById('btn-mobile-back');
   const messagesAreaEl   = document.getElementById('messages-area');
   const searchInput      = document.getElementById('search-input');
   const searchContainer  = document.getElementById('search-container');
@@ -824,7 +826,17 @@
         ${conv.unread_count > 0 ? `<div class="unread-badge">${conv.unread_count}</div>` : ''}
       `;
 
-      item.addEventListener('click', () => selectChat(conv));
+      const openConversation = () => selectChat(conv);
+      item.setAttribute('role', 'button');
+      item.tabIndex = 0;
+      item.setAttribute('aria-label', `Open chat with ${conv.full_name}`);
+      item.addEventListener('click', openConversation);
+      item.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openConversation();
+        }
+      });
       chatListEl.appendChild(item);
     });
 
@@ -863,7 +875,17 @@
           </div>
         `;
 
-        item.addEventListener('click', () => startNewChat(staff.id));
+        const startConversation = () => startNewChat(staff.id);
+        item.setAttribute('role', 'button');
+        item.tabIndex = 0;
+        item.setAttribute('aria-label', `Start chat with ${staff.full_name}`);
+        item.addEventListener('click', startConversation);
+        item.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            startConversation();
+          }
+        });
         chatListEl.appendChild(item);
       });
     }
@@ -916,6 +938,7 @@
     // Show chat view
     emptyState.style.display = 'none';
     chatView.style.display = 'flex';
+    appEl.classList.add('mobile-chat-open');
 
     // Show Quick Templates if user is IT/Admin
     if (currentUser && (currentUser.role === 'it' || currentUser.role === 'admin')) {
@@ -1486,6 +1509,12 @@
   function setupListeners() {
     setupAudioRecordingListeners();
     setupMessageSearchListeners();
+
+    btnMobileBack.addEventListener('click', () => {
+      appEl.classList.remove('mobile-chat-open');
+      messageInput.blur();
+      closeGallery();
+    });
 
     // Quick templates click
     quickTemplates.addEventListener('click', (e) => {

@@ -2,10 +2,10 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="description" content="BRH Chat — ระบบแชทสำหรับบุคลากรภายในโรงพยาบาล สื่อสารรวดเร็ว ปลอดภัย และใช้งานง่าย" />
   <title>BRH Chat — Hospital Staff Messenger</title>
-  <link rel="stylesheet" href="index.css?v=1.4" />
+  <link rel="stylesheet" href="index.css?v=1.5" />
 </head>
 <body>
 
@@ -124,6 +124,11 @@
       <!-- Chat Header -->
       <div class="chat-header" id="chat-header">
         <div class="chat-header-left">
+          <button class="mobile-back-btn" id="btn-mobile-back" type="button" aria-label="Back to conversations" title="Back to conversations">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="m15 18-6-6 6-6"/>
+            </svg>
+          </button>
           <div class="avatar">
             <div class="avatar-circle avatar-teal" id="header-avatar">--</div>
             <div class="online-dot" id="header-online-dot" style="display:none;"></div>
@@ -212,7 +217,7 @@
       <!-- File Preview (before send) -->
       <div class="file-preview" id="file-preview" style="display:none;">
         <div class="file-preview-inner">
-          <img id="file-preview-img" src="" alt="Preview" style="display:none;" />
+          <img id="file-preview-img" alt="Preview" style="display:none;" />
           <div class="file-preview-video" id="file-preview-video" style="display:none;">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polygon points="5 3 19 12 5 21 5 3"/>
@@ -288,7 +293,7 @@
 <!-- Image Lightbox -->
 <div class="lightbox" id="lightbox" style="display:none;">
   <button class="lightbox-close" id="lightbox-close">✕</button>
-  <img id="lightbox-img" src="" alt="Full size image" />
+  <img id="lightbox-img" alt="Full size image" />
 </div>
 
 <!-- Create IT Post Modal -->
@@ -419,6 +424,6 @@
 
 <!-- Socket.io Client -->
 <script src="/socket.io/socket.io.js"></script>
-<script src="app.js?v=1.4"></script>
+<script src="app.js?v=1.5"></script>
 </body>
 </html>
