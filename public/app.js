@@ -163,7 +163,7 @@
     // Set user profile in sidebar
     setElementAvatar(myAvatar, currentUser.initials, currentUser.avatar_color);
     myName.textContent = currentUser.full_name;
-    myDept.textContent = currentUser.department;
+    myDept.textContent = [currentUser.position, currentUser.department].filter(Boolean).join(' • ') || currentUser.department || '';
 
     // Set IT Board tab label based on role
     if (currentUser.role === 'it' || currentUser.role === 'admin') {
@@ -177,6 +177,10 @@
     // Connect Socket.io
     initSocket();
 
+    // Set up event listeners immediately so UI buttons are responsive right away
+    setupReportRequestListeners();
+    setupListeners();
+
     // Load conversations
     await loadConversations();
 
@@ -186,11 +190,11 @@
     // Load IT Board (to show badge count)
     await loadITBoard();
 
+    // Load Report Requests Ledger
+    await loadReportRequests();
+
     // Initialize quick templates from localStorage
     initQuickTemplates();
-
-    // Set up event listeners
-    setupListeners();
   }
 
   // ============================================
@@ -207,6 +211,7 @@
     // New message received from another user
     socket.on('new_message', (msg) => {
       handleIncomingMessage(msg);
+      updateChatUnreadPill();
     });
 
     // Confirmation that our message was sent
@@ -248,6 +253,31 @@
 
     socket.on('message_error', (data) => {
       showToast(data.error || 'ไม่สามารถส่งข้อความได้');
+    });
+
+    // Real-time Report Requests events
+    socket.on('new_report_request', (newReq) => {
+      const exists = reportRequests.some(r => r.id === newReq.id);
+      if (!exists) {
+        reportRequests.unshift(newReq);
+      }
+      renderReportLedger();
+      if (currentUser && (currentUser.role === 'it' || currentUser.role === 'admin') && newReq.user_id !== currentUser.id) {
+        showToast(`📊 คำขอรายงานใหม่: "${newReq.report_title}" จาก ${newReq.requester_name}`);
+      }
+    });
+
+    socket.on('report_request_updated', (updatedReq) => {
+      const idx = reportRequests.findIndex(r => r.id === updatedReq.id);
+      if (idx !== -1) {
+        reportRequests[idx] = updatedReq;
+      } else {
+        reportRequests.unshift(updatedReq);
+      }
+      renderReportLedger();
+      if (selectedReportId === updatedReq.id) {
+        selectReportRequest(updatedReq.id);
+      }
     });
 
     // IT Board socket events
@@ -753,7 +783,8 @@
     const matchedConversations = conversations.filter(c => {
       if (!filter) return true;
       return c.full_name.toLowerCase().includes(lowerFilter) ||
-             c.department.toLowerCase().includes(lowerFilter);
+             (c.department && c.department.toLowerCase().includes(lowerFilter)) ||
+             (c.position && c.position.toLowerCase().includes(lowerFilter));
     });
 
     // 2. Matched staff who are not in conversations
@@ -763,7 +794,8 @@
       matchedStaff = allStaff.filter(s => {
         if (activeUserIds.has(s.id)) return false;
         return s.full_name.toLowerCase().includes(lowerFilter) ||
-               s.department.toLowerCase().includes(lowerFilter);
+               (s.department && s.department.toLowerCase().includes(lowerFilter)) ||
+               (s.position && s.position.toLowerCase().includes(lowerFilter));
       });
     } else {
       matchedStaff = allStaff.filter(s => {
@@ -810,6 +842,7 @@
 
       // Format time
       const timeStr = formatTime(conv.last_message_at);
+      const convSubtitle = [conv.position, conv.department].filter(Boolean).join(' • ') || conv.department || '';
 
       item.innerHTML = `
         <div class="avatar">
@@ -818,7 +851,7 @@
         </div>
         <div class="chat-item-content">
           <div class="chat-item-top">
-            <span class="chat-item-name">${conv.full_name} <span class="chat-item-dept">${conv.department}</span></span>
+            <span class="chat-item-name">${conv.full_name} <span class="chat-item-dept">${convSubtitle}</span></span>
             <span class="chat-item-time">${timeStr}</span>
           </div>
           <div class="chat-item-preview">${preview}</div>
@@ -861,6 +894,8 @@
           }
         }
 
+        const staffSubtitle = [staff.position, staff.department].filter(Boolean).join(' • ') || staff.department || '';
+
         item.innerHTML = `
           <div class="avatar">
             <div class="avatar-circle" style="background: ${getAvatarBg(staff.avatar_color || 'avatar-blue')}">${staff.initials || '??'}</div>
@@ -868,7 +903,7 @@
           </div>
           <div class="chat-item-content">
             <div class="chat-item-top" style="margin-bottom:0;">
-              <span class="chat-item-name">${staff.full_name} <span class="chat-item-dept">${staff.department}</span></span>
+              <span class="chat-item-name">${staff.full_name} <span class="chat-item-dept">${staffSubtitle}</span></span>
             </div>
             ${specsHtml}
             <div class="chat-item-preview" style="color:var(--primary-500); font-weight:500; font-size:11.5px; margin-top:2px;">คลิกเพื่อเริ่มแชท 1:1</div>
@@ -927,6 +962,7 @@
       id: conv.other_user_id,
       full_name: conv.full_name,
       department: conv.department,
+      position: conv.position,
       initials: conv.initials,
       avatar_color: conv.avatar_color,
       is_online: conv.is_online
@@ -950,7 +986,7 @@
     // Update header
     setElementAvatar(headerAvatar, conv.initials, conv.avatar_color);
     headerNameText.textContent = conv.full_name;
-    headerDept.textContent = conv.department;
+    headerDept.textContent = [conv.position, conv.department].filter(Boolean).join(' • ') || conv.department || '';
 
     if (conv.is_online) {
       headerOnlineDot.style.display = 'block';
@@ -984,6 +1020,128 @@
   // ============================================
   // RENDER MESSAGES
   // ============================================
+
+  // Helper for file type info (Excel, PDF, Word, PowerPoint, ZIP, General)
+  function getFileTypeInfo(ext) {
+    ext = (ext || '').toLowerCase();
+    if (['xlsx', 'xls', 'csv'].includes(ext)) {
+      return {
+        typeClass: 'is-excel',
+        boxClass: 'excel',
+        badgeClass: 'excel',
+        badgeLetter: 'X',
+        extLabel: ext.toUpperCase(),
+        label: 'ตารางข้อมูล Excel • คลิกเพื่อดาวน์โหลด',
+        iconSVG: `<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line><line x1="9" y1="9" x2="9" y2="21"></line><line x1="15" y1="9" x2="15" y2="21"></line>`
+      };
+    }
+    if (ext === 'pdf') {
+      return {
+        typeClass: 'is-pdf',
+        boxClass: 'pdf',
+        badgeClass: 'pdf',
+        badgeLetter: 'PDF',
+        extLabel: 'PDF',
+        label: 'เอกสาร PDF • คลิกเพื่อดาวน์โหลด',
+        iconSVG: `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line>`
+      };
+    }
+    if (['docx', 'doc'].includes(ext)) {
+      return {
+        typeClass: 'is-word',
+        boxClass: 'word',
+        badgeClass: 'word',
+        badgeLetter: 'W',
+        extLabel: ext.toUpperCase(),
+        label: 'เอกสาร Word • คลิกเพื่อดาวน์โหลด',
+        iconSVG: `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line>`
+      };
+    }
+    if (['pptx', 'ppt'].includes(ext)) {
+      return {
+        typeClass: 'is-ppt',
+        boxClass: 'ppt',
+        badgeClass: 'ppt',
+        badgeLetter: 'P',
+        extLabel: ext.toUpperCase(),
+        label: 'งานนำเสนอ PowerPoint • คลิกเพื่อดาวน์โหลด',
+        iconSVG: `<rect x="3" y="3" width="18" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line>`
+      };
+    }
+    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
+      return {
+        typeClass: 'is-zip',
+        boxClass: 'zip',
+        badgeClass: 'zip',
+        badgeLetter: 'ZIP',
+        extLabel: ext.toUpperCase(),
+        label: 'ไฟล์บีบอัด Archive • คลิกเพื่อดาวน์โหลด',
+        iconSVG: `<path d="M21 8v13H3V8"></path><path d="M1 3h22v5H1z"></path><path d="M10 12h4"></path>`
+      };
+    }
+    return {
+      typeClass: 'is-general',
+      boxClass: 'general',
+      badgeClass: 'general',
+      badgeLetter: (ext.slice(0, 3) || 'DOC').toUpperCase(),
+      extLabel: (ext || 'FILE').toUpperCase(),
+      label: 'ไฟล์แนบ • คลิกเพื่อดาวน์โหลด',
+      iconSVG: `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line>`
+    };
+  }
+
+  // Helper to render file attachments with filename card + optional text bubble below
+  function buildFileMessageHTML(msg, timeStr, readCheck) {
+    const pathExtMatch = (msg.media_path || '').match(/\.([a-z0-9]+)$/i);
+    const capExtMatch = (msg.media_caption || '').match(/\.([a-z0-9]+)$/i);
+    const ext = (capExtMatch ? capExtMatch[1] : (pathExtMatch ? pathExtMatch[1] : 'file')).toLowerCase();
+    const info = getFileTypeInfo(ext);
+
+    let fileName = msg.media_caption || '';
+    let extraText = '';
+
+    if (msg.message_text && msg.media_caption && msg.media_caption !== msg.message_text) {
+      // Normal case: media_caption holds original filename, message_text holds typed message
+      fileName = msg.media_caption;
+      extraText = msg.message_text;
+    } else if (msg.message_text && msg.media_caption === msg.message_text) {
+      // Legacy fallback: if media_caption was overwritten by typed text (no file extension)
+      if (!capExtMatch) {
+        extraText = msg.message_text;
+        fileName = `ไฟล์แนบ (${info.extLabel})`;
+      } else {
+        fileName = msg.media_caption;
+      }
+    } else if (!fileName) {
+      fileName = `ไฟล์แนบ (${info.extLabel})`;
+    }
+
+    const subLabel = `<span class="file-ext-badge ${info.badgeClass}">${escapeHtml(info.extLabel)}</span><span>${info.label}</span>`;
+    const downloadUrl = `/api/download?file=${encodeURIComponent(msg.media_path)}&name=${encodeURIComponent(fileName)}`;
+
+    return `
+      <a href="${downloadUrl}" download="${escapeHtml(fileName)}" class="msg-media-file ${info.typeClass}" title="คลิกเพื่อดาวน์โหลด ${escapeHtml(fileName)}">
+        <div class="file-icon-box ${info.boxClass}">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            ${info.iconSVG}
+          </svg>
+          ${info.badgeLetter ? `<span class="file-badge-mark ${info.badgeClass}">${escapeHtml(info.badgeLetter)}</span>` : ''}
+        </div>
+        <div class="file-info">
+          <span class="file-name">${escapeHtml(fileName)}</span>
+          <span class="file-meta">${subLabel}</span>
+        </div>
+        <div class="file-dl-btn" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+        </div>
+      </a>
+      ${extraText ? `<div class="msg-bubble msg-file-caption-bubble">${escapeHtml(extraText)}</div>` : ''}
+      <div class="msg-time">${timeStr} ${readCheck}</div>`;
+  }
 
   function renderMessages(messages) {
     messagesAreaEl.innerHTML = '';
@@ -1057,16 +1215,7 @@
           ${msg.media_caption ? `<div class="msg-media-caption">${msg.media_caption}</div>` : ''}
           <div class="msg-time">${timeStr} ${readCheck}</div>`;
       } else if (msg.media_type === 'file') {
-        bubbleContent = `
-          <a href="${msg.media_path}" download target="_blank" class="msg-media-file" style="display:flex;align-items:center;gap:10px;padding:12px;background:rgba(0,0,0,0.05);border-radius:8px;text-decoration:none;color:inherit;margin-bottom:4px;">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--primary-500);">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline>
-            </svg>
-            <div class="file-info" style="font-size:13px;font-weight:500;">
-              <span class="file-name">${escapeHtml(msg.media_caption || 'ไฟล์แนบ')}</span>
-            </div>
-          </a>
-          <div class="msg-time">${timeStr} ${readCheck}</div>`;
+        bubbleContent = buildFileMessageHTML(msg, timeStr, readCheck);
       } else {
         bubbleContent = `
           <div class="msg-bubble">${escapeHtml(msg.message_text || '')}</div>
@@ -1147,16 +1296,7 @@
         ${msg.media_caption ? `<div class="msg-media-caption">${msg.media_caption}</div>` : ''}
         <div class="msg-time">${timeStr} ${readCheck}</div>`;
     } else if (msg.media_type === 'file') {
-      bubbleContent = `
-        <a href="${msg.media_path}" download target="_blank" class="msg-media-file" style="display:flex;align-items:center;gap:10px;padding:12px;background:rgba(0,0,0,0.05);border-radius:8px;text-decoration:none;color:inherit;margin-bottom:4px;">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--primary-500);">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline>
-          </svg>
-          <div class="file-info" style="font-size:13px;font-weight:500;">
-            <span class="file-name">${escapeHtml(msg.media_caption || 'ไฟล์แนบ')}</span>
-          </div>
-        </a>
-        <div class="msg-time">${timeStr} ${readCheck}</div>`;
+      bubbleContent = buildFileMessageHTML(msg, timeStr, readCheck);
     } else {
       bubbleContent = `
         <div class="msg-bubble">${escapeHtml(msg.message_text || '')}</div>
@@ -1316,12 +1456,13 @@
         xhr.send(formData);
       });
 
+      const isDocFile = response.type === 'file';
       socket.emit('send_message', {
         conversation_id: activeConvId,
         text: caption || null,
         media_type: response.type,
         media_path: response.path,
-        media_caption: caption || response.originalName
+        media_caption: isDocFile ? (response.originalName || caption) : (caption || response.originalName)
       });
 
       messageInput.value = '';
@@ -1358,6 +1499,12 @@
     filePreview.style.display = 'block';
     uploadProgress.style.display = 'none';
 
+    const ext = (file.name || '').split('.').pop().toLowerCase();
+    const info = getFileTypeInfo(ext);
+
+    filePreviewVideo.className = 'file-preview-video'; // reset class
+    filePreviewVideo.classList.add(`is-${info.badgeClass}-preview`);
+
     if (file.type.startsWith('image/')) {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -1369,15 +1516,15 @@
     } else {
       filePreviewImg.style.display = 'none';
       filePreviewVideo.style.display = 'flex';
-      filePreviewVideoName.textContent = ''; // Fixed: don't show filename inside the small icon
+      filePreviewVideoName.textContent = info.badgeLetter;
       
       const svg = filePreviewVideo.querySelector('svg');
       if (svg) {
         if (file.type.startsWith('video/')) {
           svg.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
+          filePreviewVideoName.textContent = '';
         } else {
-          // Document / Excel icon
-          svg.innerHTML = '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline>';
+          svg.innerHTML = info.iconSVG;
         }
       }
     }
@@ -1389,6 +1536,7 @@
     filePreview.style.display = 'none';
     filePreviewImg.style.display = 'none';
     filePreviewVideo.style.display = 'none';
+    filePreviewVideo.className = 'file-preview-video';
     uploadProgress.style.display = 'none';
   }
 
@@ -1510,14 +1658,14 @@
     setupAudioRecordingListeners();
     setupMessageSearchListeners();
 
-    btnMobileBack.addEventListener('click', () => {
+    btnMobileBack?.addEventListener('click', () => {
       appEl.classList.remove('mobile-chat-open');
       messageInput.blur();
       closeGallery();
     });
 
     // Quick templates click
-    quickTemplates.addEventListener('click', (e) => {
+    quickTemplates?.addEventListener('click', (e) => {
       if (e.target.classList.contains('template-chip')) {
         messageInput.value = e.target.textContent;
         messageInput.focus();
@@ -1525,10 +1673,10 @@
     });
 
     // Send button
-    sendBtn.addEventListener('click', sendMessage);
+    sendBtn?.addEventListener('click', sendMessage);
 
     // Enter key
-    messageInput.addEventListener('keydown', (e) => {
+    messageInput?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         sendMessage();
@@ -1536,19 +1684,19 @@
     });
 
     // Typing detection
-    messageInput.addEventListener('input', () => {
+    messageInput?.addEventListener('input', () => {
       emitTypingStart();
       clearTimeout(typingTimeout);
       typingTimeout = setTimeout(emitTypingStop, 2000);
     });
 
     // Search
-    searchInput.addEventListener('input', (e) => {
+    searchInput?.addEventListener('input', (e) => {
       renderChatList(e.target.value);
     });
 
     // Paperclip
-    attachBtn.addEventListener('click', () => {
+    attachBtn?.addEventListener('click', () => {
       if (!activeConvId) {
         showToast('กรุณาเลือกแชทก่อน');
         return;
@@ -1556,11 +1704,11 @@
       fileInput.click();
     });
 
-    fileInput.addEventListener('change', handleFileSelect);
-    filePreviewRemove.addEventListener('click', clearFilePreview);
+    fileInput?.addEventListener('change', handleFileSelect);
+    filePreviewRemove?.addEventListener('click', clearFilePreview);
 
     // Logout
-    logoutBtn.addEventListener('click', async () => {
+    logoutBtn?.addEventListener('click', async () => {
       try {
         await fetch('/api/auth/logout', { method: 'POST' });
       } catch {}
@@ -1568,32 +1716,32 @@
     });
 
     // Lightbox
-    lightboxClose.addEventListener('click', () => {
+    lightboxClose?.addEventListener('click', () => {
       lightbox.style.display = 'none';
     });
-    lightbox.addEventListener('click', (e) => {
+    lightbox?.addEventListener('click', (e) => {
       if (e.target === lightbox) lightbox.style.display = 'none';
     });
 
     // Sidebar Tabs
-    tabChats.addEventListener('click', () => switchTab('chats'));
-    tabItboard.addEventListener('click', () => switchTab('itboard'));
+    tabChats?.addEventListener('click', () => switchTab('chats'));
+    tabItboard?.addEventListener('click', () => switchTab('itboard'));
 
     // IT Board: Create Post
-    btnCreatePost.addEventListener('click', openCreatePostModal);
+    btnCreatePost?.addEventListener('click', openCreatePostModal);
 
     // Modal
-    modalClosePost.addEventListener('click', closeCreatePostModal);
-    btnCancelPost.addEventListener('click', closeCreatePostModal);
-    btnSubmitPost.addEventListener('click', submitPost);
+    modalClosePost?.addEventListener('click', closeCreatePostModal);
+    btnCancelPost?.addEventListener('click', closeCreatePostModal);
+    btnSubmitPost?.addEventListener('click', submitPost);
 
     // Close modal on overlay click
-    modalCreatePost.addEventListener('click', (e) => {
+    modalCreatePost?.addEventListener('click', (e) => {
       if (e.target === modalCreatePost) closeCreatePostModal();
     });
 
     // Submit post with Enter in title
-    postTitle.addEventListener('keydown', (e) => {
+    postTitle?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
         submitPost();
@@ -1601,30 +1749,30 @@
     });
 
     // Gallery toggle
-    btnGallery.addEventListener('click', toggleGallery);
-    btnCloseGallery.addEventListener('click', closeGallery);
+    btnGallery?.addEventListener('click', toggleGallery);
+    btnCloseGallery?.addEventListener('click', closeGallery);
     setupGalleryTabListeners();
 
     // Custom templates modal toggle
-    btnTemplateSettings.addEventListener('click', () => {
+    btnTemplateSettings?.addEventListener('click', () => {
       modalTemplates.style.display = 'flex';
       renderTemplates();
     });
 
-    modalCloseTemplates.addEventListener('click', () => {
+    modalCloseTemplates?.addEventListener('click', () => {
       modalTemplates.style.display = 'none';
     });
 
-    btnCloseTemplatesModal.addEventListener('click', () => {
+    btnCloseTemplatesModal?.addEventListener('click', () => {
       modalTemplates.style.display = 'none';
     });
 
-    modalTemplates.addEventListener('click', (e) => {
+    modalTemplates?.addEventListener('click', (e) => {
       if (e.target === modalTemplates) modalTemplates.style.display = 'none';
     });
 
     // Add new custom template
-    btnAddTemplate.addEventListener('click', () => {
+    btnAddTemplate?.addEventListener('click', () => {
       const text = newTemplateInput.value.trim();
       if (!text) return;
       
@@ -1638,7 +1786,7 @@
       newTemplateInput.value = '';
     });
 
-    newTemplateInput.addEventListener('keydown', (e) => {
+    newTemplateInput?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
         btnAddTemplate.click();
@@ -1646,7 +1794,7 @@
     });
 
     // Delete custom template (event delegation)
-    templateListManage.addEventListener('click', (e) => {
+    templateListManage?.addEventListener('click', (e) => {
       if (e.target.classList.contains('btn-delete-template')) {
         const idx = parseInt(e.target.dataset.index);
         const templates = getTemplates();
@@ -1668,7 +1816,7 @@
     if (btnSaveProfileSettings) {
       btnSaveProfileSettings.addEventListener('click', saveProfileSettings);
     }
-    modalProfileSettings.addEventListener('click', (e) => {
+    modalProfileSettings?.addEventListener('click', (e) => {
       if (e.target === modalProfileSettings) closeProfileSettingsModal();
     });
 
@@ -1814,7 +1962,7 @@
   // CUSTOM QUICK TEMPLATES LOGIC
   // ============================================
 
-  const DEFAULT_TEMPLATES = [
+  var DEFAULT_TEMPLATES = [
     'รับเรื่องเรียบร้อย กำลังไปดูให้ครับ',
     'ช่วยรีสตาร์ทเครื่องคอมพิวเตอร์ 1 รอบครับ',
     'กำลังรีโมทเข้าไปตรวจสอบครับ',
@@ -1875,7 +2023,7 @@
   // MEDIA & FILES GALLERY LOGIC
   // ============================================
 
-  let isGalleryOpen = false;
+  var isGalleryOpen = false;
 
   function toggleGallery() {
     if (chatGallerySidebar.style.display === 'none') {
@@ -2020,9 +2168,8 @@
       docList.forEach(item => {
         const itemEl = document.createElement('a');
         itemEl.className = 'gallery-doc-item';
-        itemEl.href = item.path;
-        itemEl.download = '';
-        itemEl.target = '_blank';
+        itemEl.href = `/api/download?file=${encodeURIComponent(item.path)}&name=${encodeURIComponent(item.name)}`;
+        itemEl.download = item.name;
         itemEl.innerHTML = `
           <div class="gallery-doc-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2044,7 +2191,7 @@
   // IT SPECIALIST RECOMMENDATIONS & PROFILE SETTINGS
   // ============================================
 
-  let currentSpecialtiesTags = [];
+  var currentSpecialtiesTags = [];
 
   function updateRecommendations() {
     const titleVal = postTitle.value.toLowerCase();
@@ -2115,7 +2262,7 @@
             ${staff.full_name}
             ${staff.is_online ? '<span style="color:#10b981; font-size:11px; font-weight:normal;">(ออนไลน์)</span>' : '<span style="color:#9ca3af; font-size:11px; font-weight:normal;">(ออฟไลน์)</span>'}
           </div>
-          <div class="recommended-staff-role">${staff.department || 'ฝ่าย IT'}</div>
+          <div class="recommended-staff-role">${[staff.position, staff.department].filter(Boolean).join(' • ') || staff.department || 'ฝ่าย IT'}</div>
           <div class="recommended-staff-specialties">${tagsHTML}</div>
         </div>
         <button class="btn-recommended-chat" data-user-id="${staff.id}">
@@ -2149,6 +2296,7 @@
                 other_user_id: staff.id,
                 full_name: staff.full_name,
                 department: staff.department,
+                position: staff.position,
                 initials: staff.initials,
                 avatar_color: staff.avatar_color,
                 is_online: staff.is_online
@@ -2167,9 +2315,9 @@
   }
 
   // Tags UI Logic
-  const specialtyTagInput = document.getElementById('specialty-tag-input');
-  const specialtyTagsList = document.getElementById('specialty-tags-list');
-  const suggestedTagsBtns = document.querySelectorAll('.suggested-tag-btn');
+  var specialtyTagInput = document.getElementById('specialty-tag-input');
+  var specialtyTagsList = document.getElementById('specialty-tags-list');
+  var suggestedTagsBtns = document.querySelectorAll('.suggested-tag-btn');
 
   function renderSpecialtyTags() {
     specialtyTagsList.innerHTML = '';
@@ -2259,6 +2407,1682 @@
     } finally {
       btnSaveProfileSettings.disabled = false;
       btnSaveProfileSettings.textContent = 'บันทึกการตั้งค่า';
+    }
+  }
+
+  // ============================================
+  // REPORT REQUEST PORTAL & IT LOG SYSTEM (v2.3 Full-Page Views)
+  // ============================================
+  var reportRequests = [];
+  var selectedReportId = null;
+  var activeReportFilter = 'all';
+  var activeWorkspace = 'reports';
+
+  var navWorkspaceReports = document.getElementById('nav-workspace-reports');
+  var navWorkspaceChat    = document.getElementById('nav-workspace-chat');
+  var reportsWorkspace    = document.getElementById('reports-workspace');
+  var chatWorkspace       = document.getElementById('chat-workspace');
+  var reportsPendingPill  = document.getElementById('reports-pending-pill');
+  var chatUnreadPill      = document.getElementById('chat-unread-pill');
+  var btnBackToReports    = document.getElementById('btn-back-to-reports');
+
+  // Full-Page List vs Full-Page Detail Views
+  var reportsListView     = document.getElementById('reports-list-view');
+  var reportDetailView    = document.getElementById('report-detail-view');
+  var btnBackToList       = document.getElementById('btn-back-to-list');
+
+  var reportLedgerTbody   = document.getElementById('report-ledger-tbody');
+  var reportSearchInput   = document.getElementById('report-search-input');
+  var btnExportLog        = document.getElementById('btn-export-log');
+  var btnOpenReportModal  = document.getElementById('btn-open-report-modal');
+  var btnEmptyNewReport   = document.getElementById('btn-empty-new-report');
+
+  // Filter buttons & counts
+  var filterBtns          = document.querySelectorAll('.ledger-filter-btn');
+  var statCountAll        = document.getElementById('stat-count-all');
+  var statCountPending    = document.getElementById('stat-count-pending');
+  var statCountProgress   = document.getElementById('stat-count-progress');
+  var statCountCompleted  = document.getElementById('stat-count-completed');
+  var statCountMine       = document.getElementById('stat-count-mine');
+
+  // Detail View DOM
+  var inspId              = document.getElementById('insp-id');
+  var inspUrgency         = document.getElementById('insp-urgency');
+  var inspStatusBadge     = document.getElementById('insp-status-badge');
+  var inspTitle           = document.getElementById('insp-title');
+  var inspCreatedAt       = document.getElementById('insp-created-at');
+  var inspHeroPct         = document.getElementById('insp-hero-pct');
+  var inspHeroBar         = document.getElementById('insp-hero-bar');
+  var btnInspChat         = document.getElementById('btn-insp-chat');
+  var btnInspChatLabel    = document.getElementById('btn-insp-chat-label');
+  var btnInspClaim        = document.getElementById('btn-insp-claim');
+
+  var inspRequesterName   = document.getElementById('insp-requester-name');
+  var inspRequesterPos    = document.getElementById('insp-requester-pos');
+  var inspDept            = document.getElementById('insp-dept');
+  var inspPhone           = document.getElementById('insp-phone');
+  var inspFrequency       = document.getElementById('insp-frequency');
+  var inspDueDate         = document.getElementById('insp-due-date');
+  var inspPurposes        = document.getElementById('insp-purposes');
+  var inspUrgentReasonRow = document.getElementById('insp-urgent-reason-row');
+  var inspUrgentReason    = document.getElementById('insp-urgent-reason');
+  var inspDetails         = document.getElementById('insp-details');
+  var inspChannel         = document.getElementById('insp-channel');
+
+  // IT Console Read-only & Form DOM
+  var itConsoleReadonly   = document.getElementById('it-console-readonly');
+  var roStatus            = document.getElementById('ro-status');
+  var roOwner             = document.getElementById('ro-owner');
+  var roStartDate         = document.getElementById('ro-start-date');
+  var roCompletedDate     = document.getElementById('ro-completed-date');
+  var roPct               = document.getElementById('ro-pct');
+  var roNotes             = document.getElementById('ro-notes');
+
+  var itConsoleForm       = document.getElementById('it-console-form');
+  var itFieldStatus       = document.getElementById('it-field-status');
+  var itFieldOwner        = document.getElementById('it-field-owner');
+  var itFieldStart        = document.getElementById('it-field-start');
+  var itFieldCompleted    = document.getElementById('it-field-completed');
+  var itFieldPctRange     = document.getElementById('it-field-pct-range');
+  var itFieldPct          = document.getElementById('it-field-pct');
+  var itPctDisplay        = document.getElementById('it-pct-display');
+  var itFieldNotes        = document.getElementById('it-field-notes');
+  var btnCompleteItJob    = document.getElementById('btn-complete-it-job');
+
+  // Report Request Modal DOM
+  var modalReportRequest  = document.getElementById('modal-report-request');
+  var modalCloseReport    = document.getElementById('modal-close-report');
+  var btnCancelReport     = document.getElementById('btn-cancel-report');
+  var formReportRequest   = document.getElementById('form-report-request');
+  var reqNameInput        = document.getElementById('req-name');
+  var reqNameSpinner      = document.getElementById('req-name-spinner');
+  var reqNameSuggestions  = document.getElementById('req-name-suggestions');
+  var btnUseMyInfo        = document.getElementById('btn-use-my-info');
+  var reqPositionInput    = document.getElementById('req-position');
+  var reqTitleInput       = document.getElementById('req-title');
+  var reqDeptInput        = document.getElementById('req-dept');
+  var reqPhoneInput       = document.getElementById('req-phone');
+  var reqPurposeOtherChk  = document.getElementById('req-purpose-other-chk');
+  var reqPurposeOtherText = document.getElementById('req-purpose-other-text');
+  var reqFrequencySelect  = document.getElementById('req-frequency');
+  var reqFrequencyOther   = document.getElementById('req-frequency-other');
+  var reqDetailsInput     = document.getElementById('req-details');
+  var reqChannelInput     = document.getElementById('req-channel');
+  var reqDueDateInput     = document.getElementById('req-due-date');
+  var reqUrgencySelect    = document.getElementById('req-urgency');
+  var reqUrgentReasonInput= document.getElementById('req-urgent-reason');
+
+  function switchWorkspace(ws) {
+    activeWorkspace = ws;
+    if (ws === 'reports') {
+      navWorkspaceReports.classList.add('active');
+      navWorkspaceChat.classList.remove('active');
+      reportsWorkspace.style.display = 'flex';
+      chatWorkspace.style.display = 'none';
+      closeReportDetailPage();
+      loadReportRequests();
+    } else {
+      navWorkspaceChat.classList.add('active');
+      navWorkspaceReports.classList.remove('active');
+      chatWorkspace.style.display = 'flex';
+      reportsWorkspace.style.display = 'none';
+      updateChatUnreadPill();
+    }
+  }
+
+  function closeReportDetailPage() {
+    selectedReportId = null;
+    if (reportDetailView) reportDetailView.style.display = 'none';
+    if (reportsListView) reportsListView.style.display = 'block';
+    renderReportLedger();
+  }
+
+  function updateChatUnreadPill() {
+    if (!chatUnreadPill) return;
+    const totalUnread = conversations.reduce((sum, c) => sum + (parseInt(c.unread_count) || 0), 0);
+    const pendingITPosts = (currentUser && (currentUser.role === 'it' || currentUser.role === 'admin'))
+      ? itPosts.filter(p => p.status === 'pending').length
+      : 0;
+    const total = totalUnread + pendingITPosts;
+    if (total > 0) {
+      chatUnreadPill.textContent = total;
+      chatUnreadPill.style.display = 'inline-block';
+    } else {
+      chatUnreadPill.style.display = 'none';
+    }
+  }
+
+  let reportLoadError = false;
+
+  async function loadReportRequests() {
+    try {
+      const res = await fetch('/api/report-requests');
+      if (res.status === 401) {
+        window.location.href = '/login.html';
+        return;
+      }
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.requests) {
+        reportLoadError = false;
+        reportRequests = data.requests;
+        renderReportLedger();
+        if (selectedReportId) {
+          const stillExists = reportRequests.some(r => r.id === selectedReportId);
+          if (stillExists) {
+            selectReportRequest(selectedReportId);
+          } else {
+            closeReportDetailPage();
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Load report requests error:', err);
+      reportLoadError = true;
+      renderReportLedger();
+    }
+    updateChatUnreadPill();
+  }
+
+  function normalizeReportStatus(status) {
+    if (status === 'เสร็จ' || status === 'เสร็จสิ้น') return 'เสร็จ';
+    if (status === 'กำลังดำเนินการ' || status === 'รอข้อมูลเพิ่มเติม') return 'กำลังดำเนินการ';
+    return 'ยังไม่ดำเนินการ';
+  }
+
+  function getStatusMeta(status) {
+    const norm = normalizeReportStatus(status);
+    if (norm === 'เสร็จ') return { cls: 'completed', label: 'เสร็จ' };
+    if (norm === 'กำลังดำเนินการ') return { cls: 'inprogress', label: 'กำลังดำเนินการ' };
+    return { cls: 'pending', label: 'ยังไม่ดำเนินการ' };
+  }
+
+  function formatThaiDateShort(dateStr) {
+    if (!dateStr) return '-';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const yearBE = d.getFullYear() + 543;
+    return `${day}/${month}/${yearBE}`;
+  }
+
+  function formatThaiDateTimeParts(dateStr, fallbackTimeDateStr = null) {
+    if (!dateStr) return { date: '-', time: '', full: '-' };
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return { date: String(dateStr), time: '', full: String(dateStr) };
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const yearBE = d.getFullYear() + 543;
+    const datePart = `${day}/${month}/${yearBE}`;
+
+    let hours = d.getHours();
+    let mins = d.getMinutes();
+    let secs = d.getSeconds();
+    const isMidnightDateOnly = (hours === 0 && mins === 0 && secs === 0);
+
+    if (isMidnightDateOnly && fallbackTimeDateStr) {
+      const fb = new Date(fallbackTimeDateStr);
+      if (!isNaN(fb.getTime())) {
+        hours = fb.getHours();
+        mins = fb.getMinutes();
+        secs = fb.getSeconds();
+      }
+    }
+
+    const hasTime = !(hours === 0 && mins === 0 && secs === 0 && String(dateStr).trim().length <= 10);
+    const timePart = hasTime
+      ? `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')} น.`
+      : '';
+    return {
+      date: datePart,
+      time: timePart,
+      full: timePart ? `${datePart} เวลา ${timePart}` : datePart
+    };
+  }
+
+  function parsePurposesList(purposesRaw, purposeOther) {
+    let arr = [];
+    if (Array.isArray(purposesRaw)) {
+      arr = [...purposesRaw];
+    } else if (typeof purposesRaw === 'string' && purposesRaw.trim()) {
+      try {
+        const parsed = JSON.parse(purposesRaw);
+        if (Array.isArray(parsed)) arr = parsed;
+        else arr = [purposesRaw];
+      } catch {
+        arr = [purposesRaw];
+      }
+    }
+    if (purposeOther && purposeOther.trim()) {
+      arr.push(`อื่นๆ: ${purposeOther.trim()}`);
+    }
+    return arr;
+  }
+
+  function getFilteredReportRequests() {
+    const q = (reportSearchInput ? reportSearchInput.value : '').trim().toLowerCase();
+
+    return reportRequests.filter(r => {
+      const normStatus = normalizeReportStatus(r.status);
+      if (activeReportFilter === 'pending' && normStatus !== 'ยังไม่ดำเนินการ') return false;
+      if (activeReportFilter === 'inprogress' && normStatus !== 'กำลังดำเนินการ') return false;
+      if (activeReportFilter === 'completed' && normStatus !== 'เสร็จ') return false;
+      if (activeReportFilter === 'mine' && currentUser) {
+        const isMine = r.user_id === currentUser.id || r.owner_id === currentUser.id;
+        if (!isMine) return false;
+      }
+
+      if (q) {
+        const idCode = `rep-${String(r.id).padStart(4, '0')}`;
+        const haystack = [
+          idCode,
+          r.report_title,
+          r.requester_name,
+          r.requester_position,
+          r.department,
+          r.phone,
+          r.owner_name,
+          r.details,
+          r.delivery_channel,
+          r.urgency,
+          r.urgent_reason,
+          normStatus
+        ].filter(Boolean).join(' ').toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+  }
+
+  let isCompletedSectionExpanded = false;
+
+  const sectionPagination = {
+    pending: { page: 1, pageSize: null },
+    inprogress: { page: 1, pageSize: null },
+    completed: { page: 1, pageSize: null }
+  };
+
+  function resetSectionPaginationPages() {
+    sectionPagination.pending.page = 1;
+    sectionPagination.inprogress.page = 1;
+    sectionPagination.completed.page = 1;
+  }
+
+  function getEffectivePageSize(sectionKey) {
+    const customSize = sectionPagination[sectionKey]?.pageSize;
+    if (customSize) return customSize;
+    // In "all" view (3 sections stacked), default 5 items per section; in single-status tabs, default 10 items
+    return activeReportFilter === 'all' ? 5 : 10;
+  }
+
+  function buildPageNumbersList(currentPage, totalPages) {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    const pages = [1];
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+    if (start > 2) pages.push('...');
+    for (let p = start; p <= end; p++) pages.push(p);
+    if (end < totalPages - 1) pages.push('...');
+    pages.push(totalPages);
+    return pages;
+  }
+
+  function getUrgencyMeta(urgency) {
+    const u = String(urgency || '').trim();
+    if (u.includes('ด่วนมาก') || u.includes('3 วัน') || u.includes('ด่วนที่สุด')) {
+      return { rank: 2, cls: 'very-urgent', label: 'ด่วนมาก ภายใน 3 วัน' };
+    }
+    if (u.includes('ด่วน')) {
+      return { rank: 1, cls: 'urgent', label: 'ด่วน ภายใน 5 วัน' };
+    }
+    return { rank: 0, cls: '', label: 'ปกติ ภายใน 10 วัน' };
+  }
+
+  function sortReportGroupByPriority(items) {
+    return [...items].sort((a, b) => {
+      const aRank = getUrgencyMeta(a.urgency).rank;
+      const bRank = getUrgencyMeta(b.urgency).rank;
+      if (aRank !== bRank) return bRank - aRank;
+      const aDue = a.due_date ? new Date(a.due_date).getTime() : Number.MAX_SAFE_INTEGER;
+      const bDue = b.due_date ? new Date(b.due_date).getTime() : Number.MAX_SAFE_INTEGER;
+      if (aDue !== bDue) return aDue - bDue;
+      return b.id - a.id;
+    });
+  }
+
+  async function quickClaimReportRequest(reqId, e) {
+    if (e) e.stopPropagation();
+    const btn = e && e.currentTarget ? e.currentTarget : null;
+    if (btn) {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      btn.textContent = 'กำลังรับงาน...';
+    }
+    try {
+      const res = await fetch(`/api/report-requests/${reqId}/claim`, { method: 'POST' });
+      if (res.status === 401) {
+        window.location.href = '/login.html';
+        return;
+      }
+      const data = await res.json();
+      if (data.success && data.request) {
+        showToast(`✅ รับงาน #REP-${String(reqId).padStart(4, '0')} เรียบร้อยแล้ว`);
+        const idx = reportRequests.findIndex(r => r.id === data.request.id);
+        if (idx !== -1) reportRequests[idx] = data.request;
+        renderReportLedger();
+        await loadConversations();
+      } else {
+        showToast(data.error || 'ไม่สามารถรับงานได้');
+        await loadReportRequests();
+      }
+    } catch (err) {
+      showToast('เกิดข้อผิดพลาดในการรับงาน');
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'รับงาน';
+      }
+    }
+  }
+
+  function buildReportGroupSection(groupConfig, items, isIT) {
+    const card = document.createElement('div');
+    card.className = `report-group-card ${groupConfig.cardClass}`;
+
+    const urgentCount = items.filter(r => getUrgencyMeta(r.urgency).rank > 0).length;
+    const isCollapsible = !!groupConfig.collapsible;
+    const isExpanded = !isCollapsible || groupConfig.expanded;
+
+    const header = document.createElement('div');
+    header.className = 'report-group-header';
+    header.innerHTML = `
+      <div class="group-header-left">
+        <div class="group-status-icon">${groupConfig.icon}</div>
+        <div class="group-title-wrap">
+          <div class="group-title">${groupConfig.title}</div>
+          <div class="group-subtitle">${groupConfig.subtitle}</div>
+        </div>
+      </div>
+      <div class="group-header-right">
+        ${urgentCount > 0 && groupConfig.key !== 'completed' ? `<span class="group-urgent-pill">ด่วน ${urgentCount} รายการ</span>` : ''}
+        <span class="group-count-pill">${items.length} รายการ</span>
+        ${isCollapsible ? `
+          <button type="button" class="btn-collapse-completed" aria-expanded="${isExpanded ? 'true' : 'false'}">
+            <span>${isExpanded ? 'ซ่อนรายการที่เสร็จแล้ว ▲' : 'คลิกเพื่อดูรายการที่เสร็จแล้ว ▼'}</span>
+          </button>
+        ` : ''}
+      </div>
+    `;
+
+    if (isCollapsible) {
+      header.addEventListener('click', () => {
+        isCompletedSectionExpanded = !isCompletedSectionExpanded;
+        renderReportLedger();
+      });
+    }
+
+    card.appendChild(header);
+
+    if (!isExpanded) {
+      return card;
+    }
+
+    const sortedItems = sortReportGroupByPriority(items);
+    const secKey = groupConfig.key || 'pending';
+    const pageSize = getEffectivePageSize(secKey);
+    const totalItems = sortedItems.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
+    if (!sectionPagination[secKey]) {
+      sectionPagination[secKey] = { page: 1, pageSize: null };
+    }
+    if (sectionPagination[secKey].page > totalPages) {
+      sectionPagination[secKey].page = totalPages;
+    }
+    if (sectionPagination[secKey].page < 1) {
+      sectionPagination[secKey].page = 1;
+    }
+
+    const currentPage = sectionPagination[secKey].page;
+    const startIdx = (currentPage - 1) * pageSize;
+    const endIdx = Math.min(startIdx + pageSize, totalItems);
+    const pagedItems = sortedItems.slice(startIdx, endIdx);
+
+    const tableWrap = document.createElement('div');
+    tableWrap.className = 'report-table-scroll-wrap';
+
+    const table = document.createElement('table');
+    table.className = 'report-ledger-table';
+    table.innerHTML = `
+      <thead>
+        <tr>
+          <th class="col-id">รหัสคำขอ</th>
+          <th class="col-title">ชื่อรายงาน / หัวข้อคำขอข้อมูล</th>
+          <th class="col-requester">ผู้ขอข้อมูล &amp; หน่วยงาน</th>
+          <th class="col-created">วัน-เวลาที่ขอข้อมูล</th>
+          <th class="col-due">กำหนดรับข้อมูล</th>
+          <th class="col-status">สถานะความคืบหน้า</th>
+          <th class="col-owner">ผู้รับผิดชอบ / เวลาเสร็จ</th>
+          <th class="col-action"></th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    `;
+
+    const tbody = table.querySelector('tbody');
+
+    pagedItems.forEach(req => {
+      const tr = document.createElement('tr');
+      const normStatus = normalizeReportStatus(req.status);
+      const urgMeta = getUrgencyMeta(req.urgency);
+      const isUrgent = urgMeta.rank > 0;
+
+      const rowStatusCls = normStatus === 'ยังไม่ดำเนินการ'
+        ? `row-pending ${isUrgent ? 'row-urgent' : ''}`
+        : (normStatus === 'กำลังดำเนินการ' ? 'row-inprogress' : 'row-completed');
+      tr.className = rowStatusCls;
+
+      const codeStr = `#REP-${String(req.id).padStart(4, '0')}`;
+      const purposesArr = parsePurposesList(req.purposes, req.purpose_other);
+      const purposePreview = purposesArr.length > 0 ? purposesArr.join(' • ') : req.frequency;
+      const statusMeta = getStatusMeta(req.status);
+      const pct = Math.max(0, Math.min(100, parseInt(req.percent_complete) || 0));
+
+      const createdMeta = formatThaiDateTimeParts(req.created_at);
+      const completedMeta = req.completed_date
+        ? formatThaiDateTimeParts(req.completed_date, req.updated_at)
+        : null;
+
+      const cleanOwnerName = req.owner_name ? req.owner_name.replace(/\s*\(IT\)\s*/g, '') : '';
+      const completedStampHtml = completedMeta
+        ? `<div class="rep-completed-stamp">✓ เสร็จ: ${completedMeta.date}${completedMeta.time ? ` • ${completedMeta.time}` : ''}</div>`
+        : '';
+      const ownerHtml = cleanOwnerName
+        ? `<div class="rep-owner-name">${escapeHtml(cleanOwnerName)}</div>
+           ${completedStampHtml}`
+        : `<span class="rep-owner-unassigned">รอศูนย์คอมฯ รับงาน</span>`;
+
+      const showQuickClaim = isIT && normStatus === 'ยังไม่ดำเนินการ';
+
+      const isProxy = Boolean(req.submitter_name && req.submitter_name.trim() !== (req.requester_name || '').trim());
+
+      tr.innerHTML = `
+        <td>
+          <span class="rep-id-badge">${codeStr}</span>
+          ${normStatus === 'ยังไม่ดำเนินการ' ? '<span class="rep-new-tag">ใหม่</span>' : ''}
+        </td>
+        <td>
+          <div class="rep-title-link">${escapeHtml(req.report_title)}</div>
+          <div class="rep-purpose-sub">${escapeHtml(purposePreview || '')}</div>
+        </td>
+        <td>
+          <div class="rep-req-person">${escapeHtml(req.requester_name)}${isProxy ? ` <span class="proxy-badge" title="ยื่นคำขอแทนโดย ${escapeHtml(req.submitter_name)}">ยื่นแทน</span>` : ''}</div>
+          <div class="rep-req-dept">${escapeHtml(req.department)} • โทร ${escapeHtml(req.phone)}</div>
+        </td>
+        <td>
+          <div class="rep-created-date">${createdMeta.date}</div>
+          ${createdMeta.time ? `<span class="rep-created-time">🕒 ${createdMeta.time}</span>` : ''}
+        </td>
+        <td>
+          <div class="rep-due-date">${formatThaiDateShort(req.due_date)}</div>
+          <span class="rep-urgency-tag ${urgMeta.cls}">${escapeHtml(urgMeta.label)}</span>
+        </td>
+        <td>
+          <span class="status-pill ${statusMeta.cls}">${escapeHtml(statusMeta.label)}</span>
+          <div class="cell-progress-wrap">
+            <div class="cell-progress-track">
+              <div class="cell-progress-fill ${pct === 100 ? 'done' : ''}" style="width:${pct}%"></div>
+            </div>
+            <span class="cell-progress-pct">${pct}%</span>
+          </div>
+        </td>
+        <td>${ownerHtml}</td>
+        <td style="text-align:right;">
+          <div class="row-actions-group">
+            ${showQuickClaim ? `<button type="button" class="btn-row-quick-claim" data-claim-id="${req.id}">รับงาน</button>` : ''}
+            <span class="btn-row-view-detail">ดูรายละเอียด →</span>
+          </div>
+        </td>
+      `;
+
+      const claimBtn = tr.querySelector('.btn-row-quick-claim');
+      if (claimBtn) {
+        claimBtn.addEventListener('click', (e) => quickClaimReportRequest(req.id, e));
+      }
+
+      tr.tabIndex = 0;
+      tr.setAttribute('role', 'button');
+      tr.addEventListener('click', () => {
+        selectReportRequest(req.id);
+      });
+      tr.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          selectReportRequest(req.id);
+        }
+      });
+
+      tbody.appendChild(tr);
+    });
+
+    tableWrap.appendChild(table);
+    card.appendChild(tableWrap);
+
+    // Render Pagination Footer Bar
+    const paginationBar = document.createElement('div');
+    paginationBar.className = 'section-pagination-bar';
+
+    const pageNumbers = buildPageNumbersList(currentPage, totalPages);
+    const pageButtonsHtml = pageNumbers.map(p => {
+      if (p === '...') {
+        return `<span class="page-ellipsis">…</span>`;
+      }
+      return `<button type="button" class="page-num-btn ${p === currentPage ? 'active' : ''}" data-page="${p}">${p}</button>`;
+    }).join('');
+
+    paginationBar.innerHTML = `
+      <div class="pagination-info-left">
+        <span class="pagination-range-text">แสดง <strong class="tabular-num">${startIdx + 1}–${endIdx}</strong> จากทั้งหมด <strong class="tabular-num">${totalItems}</strong> รายการ</span>
+        <label class="pagination-size-label">
+          <span>แสดงหน้าละ</span>
+          <select class="pagination-size-select" aria-label="จำนวนรายการต่อหน้า">
+            <option value="5" ${pageSize === 5 ? 'selected' : ''}>5 รายการ</option>
+            <option value="10" ${pageSize === 10 ? 'selected' : ''}>10 รายการ</option>
+            <option value="20" ${pageSize === 20 ? 'selected' : ''}>20 รายการ</option>
+            <option value="50" ${pageSize === 50 ? 'selected' : ''}>50 รายการ</option>
+          </select>
+        </label>
+      </div>
+      <div class="pagination-controls-right">
+        <button type="button" class="page-nav-btn" data-nav="prev" ${currentPage <= 1 ? 'disabled' : ''}>‹ ก่อนหน้า</button>
+        <div class="page-numbers-group">${pageButtonsHtml}</div>
+        <button type="button" class="page-nav-btn" data-nav="next" ${currentPage >= totalPages ? 'disabled' : ''}>ถัดไป ›</button>
+      </div>
+    `;
+
+    const sizeSelect = paginationBar.querySelector('.pagination-size-select');
+    if (sizeSelect) {
+      sizeSelect.addEventListener('change', (e) => {
+        sectionPagination[secKey].pageSize = parseInt(e.target.value, 10) || 10;
+        sectionPagination[secKey].page = 1;
+        renderReportLedger();
+      });
+    }
+
+    const prevBtn = paginationBar.querySelector('[data-nav="prev"]');
+    if (prevBtn) {
+      prevBtn.addEventListener('click', () => {
+        if (sectionPagination[secKey].page > 1) {
+          sectionPagination[secKey].page--;
+          renderReportLedger();
+        }
+      });
+    }
+
+    const nextBtn = paginationBar.querySelector('[data-nav="next"]');
+    if (nextBtn) {
+      nextBtn.addEventListener('click', () => {
+        if (sectionPagination[secKey].page < totalPages) {
+          sectionPagination[secKey].page++;
+          renderReportLedger();
+        }
+      });
+    }
+
+    paginationBar.querySelectorAll('.page-num-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const targetPage = parseInt(btn.dataset.page, 10);
+        if (targetPage && targetPage !== sectionPagination[secKey].page) {
+          sectionPagination[secKey].page = targetPage;
+          renderReportLedger();
+        }
+      });
+    });
+
+    card.appendChild(paginationBar);
+    return card;
+  }
+
+  function renderReportLedger() {
+    if (!reportLedgerTbody) return;
+
+    // Update counts for the 3 statuses
+    const pendingCnt = reportRequests.filter(r => normalizeReportStatus(r.status) === 'ยังไม่ดำเนินการ').length;
+    const progressCnt = reportRequests.filter(r => normalizeReportStatus(r.status) === 'กำลังดำเนินการ').length;
+    const completedCnt = reportRequests.filter(r => normalizeReportStatus(r.status) === 'เสร็จ').length;
+    const mineCnt = currentUser
+      ? reportRequests.filter(r => r.user_id === currentUser.id || r.owner_id === currentUser.id).length
+      : 0;
+
+    if (statCountAll) statCountAll.textContent = reportRequests.length;
+    if (statCountPending) statCountPending.textContent = pendingCnt;
+    if (statCountProgress) statCountProgress.textContent = progressCnt;
+    if (statCountCompleted) statCountCompleted.textContent = completedCnt;
+    if (statCountMine) statCountMine.textContent = mineCnt;
+    if (reportsPendingPill) {
+      reportsPendingPill.textContent = pendingCnt + progressCnt;
+    }
+
+    const filtered = getFilteredReportRequests();
+    reportLedgerTbody.innerHTML = '';
+
+    if (filtered.length === 0) {
+      const emptyBox = document.createElement('div');
+      emptyBox.className = 'report-group-card report-empty-state';
+      const hasSearchQuery = Boolean(reportSearchInput && reportSearchInput.value.trim());
+
+      if (reportLoadError) {
+        emptyBox.innerHTML = `
+          <div class="report-empty-icon error">!</div>
+          <h4 class="report-empty-title">ไม่สามารถโหลดข้อมูลรายการคำขอรายงานได้</h4>
+          <p class="report-empty-desc">กรุณาตรวจสอบการเชื่อมต่อเครือข่าย แล้วกดลองใหม่อีกครั้ง</p>
+          <div class="report-empty-actions">
+            <button type="button" class="btn-empty-action primary" id="btn-retry-load-reports">ลองโหลดข้อมูลใหม่</button>
+          </div>
+        `;
+        reportLedgerTbody.appendChild(emptyBox);
+        const retryBtn = emptyBox.querySelector('#btn-retry-load-reports');
+        if (retryBtn) retryBtn.addEventListener('click', () => loadReportRequests());
+        return;
+      }
+
+      if (hasSearchQuery || activeReportFilter !== 'all') {
+        emptyBox.innerHTML = `
+          <div class="report-empty-icon">🔍</div>
+          <h4 class="report-empty-title">ไม่พบรายการคำขอที่ตรงกับเงื่อนไขที่กรอง</h4>
+          <p class="report-empty-desc">ลองเปลี่ยนคำค้นหา หรือกดล้างตัวกรองเพื่อดูรายการคำขอข้อมูลทั้งหมด</p>
+          <div class="report-empty-actions">
+            <button type="button" class="btn-empty-action" id="btn-clear-report-filter">แสดงรายการทั้งหมด</button>
+            <button type="button" class="btn-empty-action primary" id="btn-empty-new-report">+ ขอข้อมูล / รายงานใหม่</button>
+          </div>
+        `;
+        reportLedgerTbody.appendChild(emptyBox);
+        const clearBtn = emptyBox.querySelector('#btn-clear-report-filter');
+        if (clearBtn) {
+          clearBtn.addEventListener('click', () => {
+            if (reportSearchInput) reportSearchInput.value = '';
+            activeReportFilter = 'all';
+            resetAllSectionPages();
+            document.querySelectorAll('.ledger-filter-btn').forEach(b => {
+              b.classList.toggle('active', b.dataset.filter === 'all');
+            });
+            renderReportLedger();
+          });
+        }
+        const newBtn = emptyBox.querySelector('#btn-empty-new-report');
+        if (newBtn) newBtn.addEventListener('click', openReportModal);
+        return;
+      }
+
+      emptyBox.innerHTML = `
+        <div class="report-empty-icon">📋</div>
+        <h4 class="report-empty-title">ยังไม่มีรายการคำขอข้อมูลรายงานในระบบ</h4>
+        <p class="report-empty-desc">คุณสามารถยื่นคำขอข้อมูลหรือรายงานใหม่เพื่อให้เจ้าหน้าที่ศูนย์คอมพิวเตอร์ดำเนินการจัดทำได้ทันที</p>
+        <div class="report-empty-actions">
+          <button type="button" class="btn-empty-action primary" id="btn-empty-create-first">+ ขอข้อมูล / รายงานใหม่</button>
+        </div>
+      `;
+      reportLedgerTbody.appendChild(emptyBox);
+      const createFirstBtn = emptyBox.querySelector('#btn-empty-create-first');
+      if (createFirstBtn) createFirstBtn.addEventListener('click', openReportModal);
+      return;
+    }
+
+    const isIT = currentUser && (currentUser.role === 'it' || currentUser.role === 'admin');
+    const hasSearchQuery = Boolean(reportSearchInput && reportSearchInput.value.trim());
+
+    const pendingItems = filtered.filter(r => normalizeReportStatus(r.status) === 'ยังไม่ดำเนินการ');
+    const progressItems = filtered.filter(r => normalizeReportStatus(r.status) === 'กำลังดำเนินการ');
+    const completedItems = filtered.filter(r => normalizeReportStatus(r.status) === 'เสร็จ');
+
+    const groupDefs = [
+      {
+        key: 'pending',
+        items: pendingItems,
+        cardClass: 'group-pending',
+        icon: '!',
+        title: 'คำขอใหม่ — ยังไม่ดำเนินการ',
+        subtitle: 'รายการคำขอข้อมูลใหม่ที่รอเจ้าหน้าที่ตรวจสอบและรับงาน (เรียงงานด่วนและกำหนดส่งใกล้สุดขึ้นก่อน)',
+        collapsible: false,
+        expanded: true
+      },
+      {
+        key: 'inprogress',
+        items: progressItems,
+        cardClass: 'group-inprogress',
+        icon: '⏳',
+        title: 'กำลังดำเนินการ',
+        subtitle: 'รายการที่เจ้าหน้าที่รับงานแล้วและอยู่ระหว่างจัดทำข้อมูลรายงาน',
+        collapsible: false,
+        expanded: true
+      },
+      {
+        key: 'completed',
+        items: completedItems,
+        cardClass: 'group-completed',
+        icon: '✓',
+        title: 'เสร็จ',
+        subtitle: 'รายการที่จัดทำข้อมูลเสร็จเรียบร้อยแล้ว (พับเก็บไว้ด้านล่างเพื่อไม่ให้ปะปนกับงานค้าง)',
+        collapsible: activeReportFilter === 'all' && !hasSearchQuery,
+        expanded: activeReportFilter === 'completed' || hasSearchQuery || isCompletedSectionExpanded
+      }
+    ];
+
+    groupDefs.forEach(g => {
+      if (g.items.length > 0) {
+        const sectionEl = buildReportGroupSection(g, g.items, isIT);
+        reportLedgerTbody.appendChild(sectionEl);
+      }
+    });
+  }
+
+  function selectReportRequest(id) {
+    selectedReportId = id;
+    const req = reportRequests.find(r => r.id === id);
+
+    if (!req) {
+      closeReportDetailPage();
+      return;
+    }
+
+    // Switch to Full-Page Detail View
+    if (reportsListView) reportsListView.style.display = 'none';
+    if (reportDetailView) {
+      reportDetailView.style.display = 'block';
+      reportDetailView.scrollTop = 0;
+    }
+
+    const codeStr = `#REP-${String(req.id).padStart(4, '0')}`;
+    const urgMeta = getUrgencyMeta(req.urgency);
+    const statusMeta = getStatusMeta(req.status);
+    const normStatus = normalizeReportStatus(req.status);
+    const isIT = currentUser && (currentUser.role === 'it' || currentUser.role === 'admin');
+    const pctVal = Math.max(0, Math.min(100, parseInt(req.percent_complete) || 0));
+
+    inspId.textContent = codeStr;
+    inspUrgency.textContent = urgMeta.label;
+    inspUrgency.className = 'sheet-urgency-badge ' + urgMeta.cls;
+
+    inspStatusBadge.textContent = statusMeta.label;
+    inspStatusBadge.className = 'sheet-status-badge status-pill ' + statusMeta.cls;
+
+    inspTitle.textContent = req.report_title;
+    inspCreatedAt.textContent = `ยื่นคำขอเมื่อ: ${formatThaiDateShort(req.created_at)} เวลา ${formatTime(req.created_at)}`;
+
+    if (inspHeroPct) inspHeroPct.textContent = `${pctVal}%`;
+    if (inspHeroBar) inspHeroBar.style.width = `${pctVal}%`;
+
+    inspRequesterName.textContent = req.requester_name;
+    const inspProxyInfo = document.getElementById('insp-proxy-info');
+    if (inspProxyInfo) {
+      if (req.submitter_name && req.submitter_name.trim() !== (req.requester_name || '').trim()) {
+        inspProxyInfo.style.display = 'inline-block';
+        inspProxyInfo.innerHTML = `ยื่นคำขอแทนโดย: <strong>${escapeHtml(req.submitter_name)}</strong>`;
+      } else {
+        inspProxyInfo.style.display = 'none';
+        inspProxyInfo.innerHTML = '';
+      }
+    }
+    inspRequesterPos.textContent = req.requester_position || '-';
+    inspDept.textContent = req.department || '-';
+    inspPhone.textContent = req.phone || '-';
+
+    const freqStr = req.frequency_other
+      ? `${req.frequency} - ${req.frequency_other}`
+      : (req.frequency || '-');
+    inspFrequency.textContent = freqStr;
+    inspDueDate.textContent = formatThaiDateShort(req.due_date);
+
+    // Purposes tags
+    inspPurposes.innerHTML = '';
+    const purposesArr = parsePurposesList(req.purposes, req.purpose_other);
+    if (purposesArr.length === 0) {
+      inspPurposes.textContent = '-';
+    } else {
+      purposesArr.forEach(p => {
+        const tag = document.createElement('span');
+        tag.className = 'purpose-tag';
+        tag.textContent = p;
+        inspPurposes.appendChild(tag);
+      });
+    }
+
+    if (req.urgent_reason && req.urgent_reason.trim()) {
+      inspUrgentReasonRow.style.display = 'flex';
+      inspUrgentReason.textContent = req.urgent_reason;
+    } else {
+      inspUrgentReasonRow.style.display = 'none';
+    }
+
+    inspDetails.textContent = req.details || '-';
+    inspChannel.textContent = (req.delivery_channel && req.delivery_channel.trim())
+      ? req.delivery_channel
+      : 'ไม่ได้ระบุช่องทางไว้ (สามารถติดต่อสอบถามหรือส่งไฟล์สำรองผ่านปุ่มแชทด้านบน)';
+
+    const cleanOwnerName = req.owner_name ? req.owner_name.replace(/\s*\(IT\)\s*/g, '') : '';
+
+    // Configure Edit button for requester (allowed when status is not 'เสร็จ')
+    const btnInspEdit = document.getElementById('btn-insp-edit');
+    const isRequesterOwner = Boolean(currentUser && req.user_id === currentUser.id);
+    if (btnInspEdit) {
+      if (isRequesterOwner && normStatus !== 'เสร็จ') {
+        btnInspEdit.style.display = 'inline-flex';
+        btnInspEdit.title = req.owner_id
+          ? 'แก้ไขรายละเอียดที่ตกหล่น (ระบบจะส่งแชทแจ้งเตือนผู้รับผิดชอบให้อัตโนมัติ)'
+          : 'แก้ไขข้อมูลคำขอรายงานนี้';
+      } else {
+        btnInspEdit.style.display = 'none';
+      }
+    }
+
+    // Configure Chat & Claim buttons
+    if (isIT) {
+      btnInspChat.disabled = false;
+      btnInspChat.classList.remove('is-locked');
+      btnInspChat.title = 'คลิกเพื่อเปิดห้องแชทคุยกับผู้ขอรายงาน';
+      btnInspChatLabel.textContent = `แชทคุยกับผู้ขอ: ${req.requester_name}`;
+      btnInspChat.style.display = req.user_id !== currentUser.id ? 'inline-flex' : 'none';
+      if (!req.owner_id || normStatus === 'ยังไม่ดำเนินการ') {
+        btnInspClaim.style.display = 'inline-flex';
+      } else {
+        btnInspClaim.style.display = 'none';
+      }
+    } else {
+      btnInspClaim.style.display = 'none';
+      if (req.owner_id && req.owner_id !== currentUser.id) {
+        btnInspChat.disabled = false;
+        btnInspChat.classList.remove('is-locked');
+        btnInspChat.title = 'คลิกเพื่อเปิดห้องแชทคุยกับเจ้าหน้าที่ผู้รับผิดชอบงานนี้ทันที';
+        btnInspChatLabel.textContent = `แชทกับผู้รับผิดชอบ: ${cleanOwnerName}`;
+        btnInspChat.style.display = 'inline-flex';
+      } else if (req.owner_id === currentUser.id) {
+        btnInspChat.style.display = 'none';
+      } else {
+        btnInspChat.disabled = true;
+        btnInspChat.classList.add('is-locked');
+        btnInspChat.title = 'เมื่อเจ้าหน้าที่ศูนย์คอมพิวเตอร์กดรับงานแล้ว ปุ่มนี้จะปลดล็อกให้ทักแชทคุยกับผู้รับผิดชอบได้ทันที';
+        btnInspChatLabel.textContent = 'รอเจ้าหน้าที่รับงานเพื่อเปิดแชท';
+        btnInspChat.style.display = 'inline-flex';
+      }
+    }
+
+    // Populate IT Console (Editable for IT/Admin, Read-only for Staff)
+    const completedMeta = req.completed_date
+      ? formatThaiDateTimeParts(req.completed_date, req.updated_at)
+      : null;
+    const toLocalDateVal = (val) => {
+      if (!val) return '';
+      const d = new Date(val);
+      if (isNaN(d.getTime())) return String(val).slice(0, 10);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+
+    if (isIT) {
+      itConsoleReadonly.style.display = 'none';
+      itConsoleForm.style.display = 'flex';
+
+      itFieldStatus.value = normStatus;
+      itFieldOwner.value = cleanOwnerName || currentUser.full_name;
+      itFieldStart.value = req.start_date ? toLocalDateVal(req.start_date) : toLocalDateVal(new Date());
+      itFieldCompleted.value = req.completed_date ? toLocalDateVal(req.completed_date) : '';
+      const compTimeHint = document.getElementById('it-completed-time-hint');
+      if (compTimeHint) {
+        if (completedMeta && completedMeta.time) {
+          compTimeHint.textContent = `✓ เวลาที่เสร็จ: ${completedMeta.time}`;
+          compTimeHint.style.display = 'block';
+        } else {
+          compTimeHint.style.display = 'none';
+        }
+      }
+      itFieldPctRange.value = pctVal;
+      itFieldPct.value = pctVal;
+      itPctDisplay.textContent = pctVal;
+      itFieldNotes.value = req.it_notes || '';
+    } else {
+      itConsoleForm.style.display = 'none';
+      itConsoleReadonly.style.display = 'block';
+
+      roStatus.textContent = normStatus;
+      roOwner.textContent = cleanOwnerName || 'รอเจ้าหน้าที่ศูนย์คอมพิวเตอร์รับงาน';
+      roStartDate.textContent = formatThaiDateShort(req.start_date);
+      roCompletedDate.textContent = completedMeta ? completedMeta.full : '-';
+      roPct.textContent = `${pctVal}%`;
+      roNotes.textContent = req.it_notes || '-';
+    }
+  }
+
+  let editingReportId = null;
+
+  function syncReportFormConditionalFields() {
+    const meetingChk = document.getElementById('req-purpose-meeting-chk');
+    const showPurposeSub = Boolean((reqPurposeOtherChk && reqPurposeOtherChk.checked) || (meetingChk && meetingChk.checked));
+    if (reqPurposeOtherText) {
+      reqPurposeOtherText.style.display = showPurposeSub ? 'block' : 'none';
+      if (meetingChk && meetingChk.checked && !(reqPurposeOtherChk && reqPurposeOtherChk.checked)) {
+        reqPurposeOtherText.placeholder = 'ระบุวันที่ประชุม เช่น 28 ต.ค. 2569...';
+      } else {
+        reqPurposeOtherText.placeholder = 'ระบุวัตถุประสงค์เพิ่มเติม หรือวันที่ประชุม...';
+      }
+    }
+
+    if (reqFrequencySelect && reqFrequencyOther) {
+      const showFreqSub = reqFrequencySelect.value === 'อื่นๆ';
+      reqFrequencyOther.style.display = showFreqSub ? 'block' : 'none';
+    }
+
+    const reqUrgentReqMark = document.getElementById('req-urgent-reason-req');
+    const reqUrgentHint = document.getElementById('req-urgent-reason-hint');
+    if (reqUrgencySelect && reqUrgentReasonInput) {
+      const urgVal = reqUrgencySelect.value || '';
+      const isUrgentSelected = urgVal.includes('ด่วน');
+      reqUrgentReasonInput.required = isUrgentSelected;
+      if (reqUrgentReqMark) {
+        reqUrgentReqMark.style.display = isUrgentSelected ? 'inline' : 'none';
+      }
+      if (reqUrgentHint) {
+        reqUrgentHint.textContent = isUrgentSelected
+          ? 'จำเป็นต้องระบุเหตุผลเมื่อขอข้อมูลแบบด่วน/ด่วนมาก'
+          : 'กรอกเมื่อเลือก ด่วน หรือ ด่วนมาก';
+      }
+    }
+  }
+
+  // ============================================
+  // PM REQUESTER AUTOCOMPLETE
+  // ============================================
+  let pmSearchTimer = null;
+  let pmSuggestions = [];
+  let pmActiveIndex = -1;
+
+  function hidePmSuggestions() {
+    if (pmSearchTimer) {
+      clearTimeout(pmSearchTimer);
+      pmSearchTimer = null;
+    }
+    if (reqNameSuggestions) {
+      reqNameSuggestions.style.display = 'none';
+      reqNameSuggestions.innerHTML = '';
+    }
+    if (reqNameSpinner) {
+      reqNameSpinner.style.display = 'none';
+    }
+    pmActiveIndex = -1;
+  }
+
+  function renderPmSuggestions(list) {
+    if (!reqNameSuggestions) return;
+    pmSuggestions = list || [];
+    pmActiveIndex = -1;
+
+    if (pmSuggestions.length === 0) {
+      reqNameSuggestions.innerHTML = `
+        <div class="autocomplete-empty">
+          ไม่พบชื่อในระบบ PM (สามารถพิมพ์ระบุเองได้)
+        </div>
+      `;
+      reqNameSuggestions.style.display = 'block';
+      return;
+    }
+
+    reqNameSuggestions.innerHTML = pmSuggestions.map((item, idx) => {
+      const subInfo = [item.position, item.display_department || item.sub_department || item.department].filter(Boolean).join(' • ');
+      return `
+        <div class="autocomplete-item" data-index="${idx}">
+          <div class="autocomplete-item-name">
+            <span>${escapeHtml(item.full_name)}</span>
+            ${item.username ? `<span class="autocomplete-badge">${escapeHtml(item.username)}</span>` : ''}
+          </div>
+          ${subInfo ? `<div class="autocomplete-item-dept">${escapeHtml(subInfo)}</div>` : ''}
+        </div>
+      `;
+    }).join('');
+
+    reqNameSuggestions.querySelectorAll('.autocomplete-item').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const idx = parseInt(el.getAttribute('data-index'), 10);
+        selectPmRequester(pmSuggestions[idx]);
+      });
+    });
+
+    reqNameSuggestions.style.display = 'block';
+  }
+
+  function selectPmRequester(person) {
+    if (!person) return;
+    if (reqNameInput) reqNameInput.value = person.full_name || '';
+    if (reqPositionInput) reqPositionInput.value = person.position || '';
+    
+    // Fill the specific sub-department / ward (dept_name) directly into the field instead
+    const deptToFill = person.sub_department || person.dept_name || person.department || '';
+    if (reqDeptInput) reqDeptInput.value = deptToFill;
+
+    // Pulse animation on position & department inputs to indicate successful auto-fill
+    [reqPositionInput, reqDeptInput].forEach(inputEl => {
+      if (inputEl) {
+        inputEl.classList.remove('field-autofilled');
+        void inputEl.offsetWidth; // Force CSS reflow to re-trigger keyframe animation
+        inputEl.classList.add('field-autofilled');
+      }
+    });
+
+    hidePmSuggestions();
+  }
+
+  function setupPmRequesterAutocomplete() {
+    if (!reqNameInput) return;
+
+    reqNameInput.addEventListener('input', () => {
+      const q = reqNameInput.value.trim();
+      if (pmSearchTimer) clearTimeout(pmSearchTimer);
+
+      if (q.length < 2) {
+        hidePmSuggestions();
+        return;
+      }
+
+      if (reqNameSpinner) reqNameSpinner.style.display = 'block';
+
+      pmSearchTimer = setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/staff/pm-search?q=${encodeURIComponent(q)}`);
+          const data = await res.json();
+          if (reqNameSpinner) reqNameSpinner.style.display = 'none';
+          if (reqNameInput && reqNameInput.value.trim() === q) {
+            renderPmSuggestions(data.results || []);
+          }
+        } catch (err) {
+          if (reqNameSpinner) reqNameSpinner.style.display = 'none';
+          console.error('PM search fetch error:', err);
+        }
+      }, 250);
+    });
+
+    reqNameInput.addEventListener('keydown', (e) => {
+      if (!reqNameSuggestions || reqNameSuggestions.style.display === 'none') return;
+      const items = reqNameSuggestions.querySelectorAll('.autocomplete-item');
+      if (items.length === 0) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        pmActiveIndex = (pmActiveIndex + 1) % items.length;
+        updateActiveSuggestion(items);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        pmActiveIndex = (pmActiveIndex - 1 + items.length) % items.length;
+        updateActiveSuggestion(items);
+      } else if (e.key === 'Enter') {
+        if (pmActiveIndex >= 0 && pmActiveIndex < pmSuggestions.length) {
+          e.preventDefault();
+          selectPmRequester(pmSuggestions[pmActiveIndex]);
+        }
+      } else if (e.key === 'Escape') {
+        hidePmSuggestions();
+      }
+    });
+
+    function updateActiveSuggestion(items) {
+      items.forEach((it, idx) => {
+        if (idx === pmActiveIndex) {
+          it.classList.add('active');
+          it.scrollIntoView({ block: 'nearest' });
+        } else {
+          it.classList.remove('active');
+        }
+      });
+    }
+
+    // Close when clicking outside
+    document.addEventListener('click', (e) => {
+      if (reqNameSuggestions && reqNameSuggestions.style.display !== 'none') {
+        if (!reqNameSuggestions.contains(e.target) && e.target !== reqNameInput) {
+          hidePmSuggestions();
+        }
+      }
+    });
+
+    // "Use My Info" Button
+    if (btnUseMyInfo) {
+      btnUseMyInfo.addEventListener('click', () => {
+        if (!currentUser) return;
+        reqNameInput.value = currentUser.full_name || '';
+        if (reqPositionInput) reqPositionInput.value = currentUser.position || '';
+        if (reqDeptInput) reqDeptInput.value = currentUser.dept_name || currentUser.sub_department || currentUser.department || '';
+
+        [reqNameInput, reqPositionInput, reqDeptInput].forEach(el => {
+          if (el) {
+            el.classList.remove('field-autofilled');
+            void el.offsetWidth;
+            el.classList.add('field-autofilled');
+          }
+        });
+        hidePmSuggestions();
+      });
+    }
+  }
+
+  function openReportModal() {
+    if (!modalReportRequest) return;
+    editingReportId = null;
+    hidePmSuggestions();
+    const modalTitleText = document.getElementById('modal-report-title-text');
+    const submitLabel = document.getElementById('btn-submit-report-label');
+    if (modalTitleText) modalTitleText.textContent = 'แบบฟอร์มขอข้อมูล / ขอรายงาน (ศูนย์คอมพิวเตอร์)';
+    if (submitLabel) submitLabel.textContent = 'ส่งคำขอข้อมูลรายงาน';
+
+    if (currentUser) {
+      reqNameInput.value = currentUser.full_name || '';
+      reqDeptInput.value = currentUser.dept_name || currentUser.sub_department || currentUser.department || '';
+      if (reqPositionInput) reqPositionInput.value = currentUser.position || '';
+    }
+    reqTitleInput.value = '';
+    reqDetailsInput.value = '';
+    reqUrgentReasonInput.value = '';
+    reqPurposeOtherText.value = '';
+    reqFrequencyOther.value = '';
+    if (reqChannelInput) reqChannelInput.value = '';
+    document.querySelectorAll('input[name="req_purpose"]').forEach(chk => { chk.checked = false; });
+    if (reqFrequencySelect) reqFrequencySelect.value = 'ใช้ครั้งเดียว';
+    if (reqUrgencySelect) reqUrgencySelect.value = 'ปกติ ภายใน 10 วัน';
+    document.querySelectorAll('#req-channel-chips .channel-chip').forEach(c => c.classList.remove('active'));
+
+    // Default due date = +10 days
+    const defaultDue = new Date();
+    defaultDue.setDate(defaultDue.getDate() + 10);
+    reqDueDateInput.value = defaultDue.toISOString().slice(0, 10);
+
+    syncReportFormConditionalFields();
+
+    modalReportRequest.style.display = 'flex';
+    reqTitleInput.focus();
+  }
+
+  function openEditReportModal(req) {
+    if (!modalReportRequest || !req) return;
+    editingReportId = req.id;
+    hidePmSuggestions();
+
+    const codeStr = `#REP-${String(req.id).padStart(4, '0')}`;
+    const modalTitleText = document.getElementById('modal-report-title-text');
+    const submitLabel = document.getElementById('btn-submit-report-label');
+    if (modalTitleText) modalTitleText.textContent = `แก้ไขคำขอข้อมูลรายงาน (${codeStr})`;
+    if (submitLabel) submitLabel.textContent = 'บันทึกการแก้ไขคำขอ';
+
+    reqNameInput.value = req.requester_name || '';
+    reqPositionInput.value = req.requester_position || '';
+    reqTitleInput.value = req.report_title || '';
+    reqDeptInput.value = req.department || '';
+    reqPhoneInput.value = req.phone || '';
+    reqDetailsInput.value = req.details || '';
+    if (reqChannelInput) reqChannelInput.value = req.delivery_channel || '';
+    reqPurposeOtherText.value = req.purpose_other || '';
+    reqFrequencyOther.value = req.frequency_other || '';
+    reqUrgentReasonInput.value = req.urgent_reason || '';
+
+    // Restore purposes checkboxes
+    let rawPurposes = [];
+    if (Array.isArray(req.purposes)) {
+      rawPurposes = req.purposes;
+    } else if (typeof req.purposes === 'string' && req.purposes.trim()) {
+      try {
+        const parsed = JSON.parse(req.purposes);
+        if (Array.isArray(parsed)) rawPurposes = parsed;
+      } catch (_) {
+        rawPurposes = [req.purposes];
+      }
+    }
+    document.querySelectorAll('input[name="req_purpose"]').forEach(chk => {
+      chk.checked = rawPurposes.includes(chk.value);
+    });
+
+    if (reqFrequencySelect) reqFrequencySelect.value = req.frequency || 'ใช้ครั้งเดียว';
+    if (reqUrgencySelect) reqUrgencySelect.value = req.urgency || 'ปกติ ภายใน 10 วัน';
+    if (reqDueDateInput) {
+      reqDueDateInput.value = req.due_date ? String(req.due_date).slice(0, 10) : '';
+    }
+
+    document.querySelectorAll('#req-channel-chips .channel-chip').forEach(c => c.classList.remove('active'));
+    syncReportFormConditionalFields();
+
+    modalReportRequest.style.display = 'flex';
+    reqTitleInput.focus();
+  }
+
+  function closeReportModal() {
+    editingReportId = null;
+    hidePmSuggestions();
+    if (modalReportRequest) modalReportRequest.style.display = 'none';
+  }
+
+  async function handleCreateReportRequest(e) {
+    e.preventDefault();
+
+    const urgVal = reqUrgencySelect ? reqUrgencySelect.value : '';
+    if (urgVal.includes('ด่วน') && !reqUrgentReasonInput.value.trim()) {
+      showToast('⚠️ กรุณาระบุเหตุผลในการขอด่วน');
+      reqUrgentReasonInput.focus();
+      return;
+    }
+
+    const isEditing = Boolean(editingReportId);
+    const targetEditId = editingReportId;
+
+    const submitBtn = document.getElementById('btn-submit-report');
+    const submitLabel = document.getElementById('btn-submit-report-label');
+    if (submitBtn) submitBtn.disabled = true;
+    if (submitLabel) submitLabel.textContent = isEditing ? 'กำลังบันทึกการแก้ไข...' : 'กำลังส่งคำขอ...';
+
+    const checkedPurposes = Array.from(document.querySelectorAll('input[name="req_purpose"]:checked')).map(el => el.value);
+
+    const payload = {
+      requester_name: reqNameInput.value.trim(),
+      requester_position: reqPositionInput.value.trim(),
+      report_title: reqTitleInput.value.trim(),
+      department: reqDeptInput.value.trim(),
+      phone: reqPhoneInput.value.trim(),
+      purposes: checkedPurposes,
+      purpose_other: reqPurposeOtherText.value.trim(),
+      frequency: reqFrequencySelect.value,
+      frequency_other: reqFrequencyOther.value.trim(),
+      details: reqDetailsInput.value.trim(),
+      delivery_channel: reqChannelInput.value.trim(),
+      due_date: reqDueDateInput.value || null,
+      urgency: reqUrgencySelect.value,
+      urgent_reason: reqUrgentReasonInput.value.trim()
+    };
+
+    try {
+      const url = isEditing
+        ? `/api/report-requests/${targetEditId}/requester-edit`
+        : '/api/report-requests';
+      const method = isEditing ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success && data.request) {
+        if (isEditing) {
+          showToast(
+            data.notified_owner
+              ? '✅ บันทึกการแก้ไขคำขอ และส่งแชทแจ้งเตือนผู้รับผิดชอบเรียบร้อยแล้ว'
+              : '✅ บันทึกการแก้ไขคำขอข้อมูลเรียบร้อยแล้ว'
+          );
+          const idx = reportRequests.findIndex(r => r.id === data.request.id);
+          if (idx !== -1) reportRequests[idx] = data.request;
+          if (data.notified_owner) {
+            await loadConversations();
+          }
+        } else {
+          showToast('✅ ส่งคำขอข้อมูลรายงานเรียบร้อยแล้ว');
+          const exists = reportRequests.some(r => r.id === data.request.id);
+          if (!exists) reportRequests.unshift(data.request);
+        }
+        closeReportModal();
+        renderReportLedger();
+        selectReportRequest(data.request.id);
+      } else {
+        showToast(data.error || 'ไม่สามารถบันทึกคำขอได้');
+      }
+    } catch (err) {
+      showToast('เกิดข้อผิดพลาดในการบันทึกคำขอข้อมูล');
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
+      if (submitLabel) submitLabel.textContent = isEditing ? 'บันทึกการแก้ไขคำขอ' : 'ส่งคำขอข้อมูลรายงาน';
+    }
+  }
+
+  async function handleClaimReportRequest() {
+    if (!selectedReportId) return;
+    if (btnInspClaim) {
+      if (btnInspClaim.disabled) return;
+      btnInspClaim.disabled = true;
+      btnInspClaim.textContent = 'กำลังรับงาน...';
+    }
+    try {
+      const res = await fetch(`/api/report-requests/${selectedReportId}/claim`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success && data.request) {
+        showToast('✅ รับงานขอรายงานเรียบร้อย! ระบบสร้างข้อความแจ้งผู้ขอในแชทแล้ว');
+        const idx = reportRequests.findIndex(r => r.id === data.request.id);
+        if (idx !== -1) reportRequests[idx] = data.request;
+        renderReportLedger();
+        selectReportRequest(data.request.id);
+        await loadConversations();
+      } else {
+        showToast(data.error || 'ไม่สามารถรับงานได้');
+      }
+    } catch (err) {
+      showToast('เกิดข้อผิดพลาดในการรับงาน');
+    } finally {
+      if (btnInspClaim) {
+        btnInspClaim.disabled = false;
+        btnInspClaim.textContent = 'รับงานนี้ & เปิดแชท';
+      }
+    }
+  }
+
+  async function saveITConsoleUpdate(forceComplete = false) {
+    if (!selectedReportId) return;
+
+    const activeBtn = forceComplete ? btnCompleteItJob : btnSaveItLog;
+    const origText = activeBtn ? activeBtn.textContent : '';
+    if (activeBtn) {
+      if (activeBtn.disabled) return;
+      activeBtn.disabled = true;
+      activeBtn.textContent = 'กำลังบันทึก...';
+    }
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const statusVal = forceComplete ? 'เสร็จ' : itFieldStatus.value;
+    const pctVal = forceComplete ? 100 : (parseInt(itFieldPct.value) || 0);
+    const compDateVal = forceComplete ? (itFieldCompleted.value || todayStr) : (itFieldCompleted.value || null);
+
+    const payload = {
+      status: statusVal,
+      owner_name: itFieldOwner.value.trim() || currentUser.full_name,
+      start_date: itFieldStart.value || todayStr,
+      completed_date: compDateVal,
+      percent_complete: pctVal,
+      it_notes: itFieldNotes.value.trim()
+    };
+
+    try {
+      const res = await fetch(`/api/report-requests/${selectedReportId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success && data.request) {
+        showToast(forceComplete ? '✅ บันทึกสถานะ เสร็จ 100% เรียบร้อยแล้ว!' : '✅ บันทึกสถานะงานเรียบร้อยแล้ว');
+        const idx = reportRequests.findIndex(r => r.id === data.request.id);
+        if (idx !== -1) reportRequests[idx] = data.request;
+        renderReportLedger();
+        selectReportRequest(data.request.id);
+      } else {
+        showToast(data.error || 'ไม่สามารถบันทึกสถานะได้');
+      }
+    } catch (err) {
+      showToast('เกิดข้อผิดพลาดในการบันทึก Log');
+    } finally {
+      if (activeBtn) {
+        activeBtn.disabled = false;
+        activeBtn.textContent = origText;
+      }
+    }
+  }
+
+  function showChatReportContextBanner(req) {
+    const banner = document.getElementById('chat-report-context-banner');
+    if (!banner || !req) return;
+    const codeStr = `#REP-${String(req.id).padStart(4, '0')}`;
+    const ctxId = document.getElementById('chat-ctx-id');
+    const ctxTitle = document.getElementById('chat-ctx-title');
+    const ctxSub = document.getElementById('chat-ctx-sub');
+    if (ctxId) ctxId.textContent = codeStr;
+    if (ctxTitle) ctxTitle.textContent = req.report_title || '-';
+    if (ctxSub) {
+      const chText = (req.delivery_channel && req.delivery_channel.trim())
+        ? req.delivery_channel
+        : 'ไม่ได้ระบุช่องทางไว้ (ใช้แชทนี้เป็นช่องทางสำรอง)';
+      ctxSub.textContent = `ช่องทางรับข้อมูล: ${chText} • กำหนดส่ง ${formatThaiDateShort(req.due_date)}`;
+    }
+    banner.dataset.reportId = String(req.id);
+    banner.style.display = 'flex';
+  }
+
+  async function openContextualChatForSelectedReport() {
+    const req = reportRequests.find(r => r.id === selectedReportId);
+    if (!req) return;
+
+    const isIT = currentUser && (currentUser.role === 'it' || currentUser.role === 'admin');
+    const targetUserId = isIT ? req.user_id : req.owner_id;
+
+    if (!targetUserId || targetUserId === currentUser.id) {
+      showToast('⏳ กรุณารอเจ้าหน้าที่ศูนย์คอมพิวเตอร์กดรับงานก่อน จึงจะสามารถแชทกับผู้รับผิดชอบได้ครับ');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/conversations/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ otherUserId: targetUserId })
+      });
+      const data = await res.json();
+      if (data.conversation_id) {
+        switchWorkspace('chat');
+        switchTab('chats');
+        await loadConversations();
+        const conv = conversations.find(c => c.conversation_id === data.conversation_id);
+        if (conv) {
+          selectChat(conv);
+          showChatReportContextBanner(req);
+        }
+      }
+    } catch (err) {
+      showToast('ไม่สามารถเปิดห้องแชทได้');
+    }
+  }
+
+  function setupReportRequestListeners() {
+    if (navWorkspaceReports) {
+      navWorkspaceReports.addEventListener('click', () => switchWorkspace('reports'));
+    }
+    if (navWorkspaceChat) {
+      navWorkspaceChat.addEventListener('click', () => switchWorkspace('chat'));
+    }
+    if (btnBackToReports) {
+      btnBackToReports.addEventListener('click', () => switchWorkspace('reports'));
+    }
+    if (btnBackToList) {
+      btnBackToList.addEventListener('click', closeReportDetailPage);
+    }
+
+    const btnToggleUsage = document.getElementById('btn-toggle-usage-steps');
+    const usageStepsList = document.getElementById('portal-usage-steps');
+    const toggleUsageLabel = document.getElementById('toggle-usage-label');
+    if (btnToggleUsage && usageStepsList) {
+      // Restore saved preference from localStorage
+      try {
+        if (localStorage.getItem('brh_usage_banner_collapsed') === '1') {
+          usageStepsList.classList.add('collapsed');
+          if (toggleUsageLabel) toggleUsageLabel.textContent = 'แสดงวิธีใช้งาน';
+        }
+      } catch (_) {}
+
+      btnToggleUsage.addEventListener('click', () => {
+        const isCollapsed = usageStepsList.classList.toggle('collapsed');
+        if (toggleUsageLabel) {
+          toggleUsageLabel.textContent = isCollapsed ? 'แสดงวิธีใช้งาน' : 'ซ่อนวิธีใช้งาน';
+        }
+        try {
+          localStorage.setItem('brh_usage_banner_collapsed', isCollapsed ? '1' : '0');
+        } catch (_) {}
+      });
+    }
+
+    // Chat Report Context Banner actions
+    const ctxBanner = document.getElementById('chat-report-context-banner');
+    const btnCtxInsertRef = document.getElementById('btn-chat-ctx-insert-ref');
+    const btnCtxViewSheet = document.getElementById('btn-chat-ctx-view-sheet');
+    const btnCtxClose = document.getElementById('btn-chat-ctx-close');
+
+    if (btnCtxInsertRef) {
+      btnCtxInsertRef.addEventListener('click', () => {
+        const repId = ctxBanner ? parseInt(ctxBanner.dataset.reportId, 10) : selectedReportId;
+        const req = reportRequests.find(r => r.id === repId);
+        if (req && messageInput) {
+          const refPrefix = `[#REP-${String(req.id).padStart(4, '0')} ${req.report_title}] `;
+          if (!messageInput.value.includes(`#REP-${String(req.id).padStart(4, '0')}`)) {
+            messageInput.value = refPrefix + messageInput.value;
+          }
+          messageInput.focus();
+        }
+      });
+    }
+
+    if (btnCtxViewSheet) {
+      btnCtxViewSheet.addEventListener('click', () => {
+        const repId = ctxBanner ? parseInt(ctxBanner.dataset.reportId, 10) : selectedReportId;
+        switchWorkspace('reports');
+        if (repId) selectReportRequest(repId);
+      });
+    }
+
+    if (btnCtxClose && ctxBanner) {
+      btnCtxClose.addEventListener('click', () => {
+        ctxBanner.style.display = 'none';
+      });
+    }
+
+    // Progressive Disclosure & Channel Chips inside Report Request Form
+    const meetingChk = document.getElementById('req-purpose-meeting-chk');
+    if (reqPurposeOtherChk) {
+      reqPurposeOtherChk.addEventListener('change', () => {
+        syncReportFormConditionalFields();
+        if (reqPurposeOtherChk.checked && reqPurposeOtherText) reqPurposeOtherText.focus();
+      });
+    }
+    if (meetingChk) {
+      meetingChk.addEventListener('change', () => {
+        syncReportFormConditionalFields();
+        if (meetingChk.checked && reqPurposeOtherText) reqPurposeOtherText.focus();
+      });
+    }
+    if (reqFrequencySelect) {
+      reqFrequencySelect.addEventListener('change', () => {
+        syncReportFormConditionalFields();
+        if (reqFrequencySelect.value === 'อื่นๆ' && reqFrequencyOther) reqFrequencyOther.focus();
+      });
+    }
+
+    document.querySelectorAll('#req-channel-chips .channel-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        document.querySelectorAll('#req-channel-chips .channel-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        if (!reqChannelInput) return;
+        const exactVal = chip.dataset.channelValue;
+        const prefixVal = chip.dataset.channelPrefix;
+        const placeholderVal = chip.dataset.placeholder;
+        if (placeholderVal) reqChannelInput.placeholder = placeholderVal;
+        if (exactVal) {
+          reqChannelInput.value = exactVal;
+        } else if (prefixVal) {
+          if (!reqChannelInput.value.startsWith(prefixVal)) {
+            reqChannelInput.value = prefixVal;
+          }
+          reqChannelInput.focus();
+        }
+      });
+    });
+
+    filterBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        filterBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeReportFilter = btn.dataset.filter || 'all';
+        resetSectionPaginationPages();
+        renderReportLedger();
+      });
+    });
+
+    if (reportSearchInput) {
+      reportSearchInput.addEventListener('input', () => {
+        resetSectionPaginationPages();
+        renderReportLedger();
+      });
+    }
+
+    if (btnOpenReportModal) {
+      btnOpenReportModal.addEventListener('click', openReportModal);
+    }
+    if (btnEmptyNewReport) {
+      btnEmptyNewReport.addEventListener('click', openReportModal);
+    }
+    if (modalCloseReport) {
+      modalCloseReport.addEventListener('click', closeReportModal);
+    }
+    if (btnCancelReport) {
+      btnCancelReport.addEventListener('click', closeReportModal);
+    }
+    if (formReportRequest) {
+      formReportRequest.addEventListener('submit', handleCreateReportRequest);
+    }
+
+    setupPmRequesterAutocomplete();
+
+    if (reqUrgencySelect && reqDueDateInput) {
+      reqUrgencySelect.addEventListener('change', () => {
+        const val = reqUrgencySelect.value;
+        let addDays = 10;
+        if (val.includes('3 วัน') || val.includes('ด่วนมาก')) addDays = 3;
+        else if (val.includes('5 วัน') || val.includes('ด่วน')) addDays = 5;
+        const d = new Date();
+        d.setDate(d.getDate() + addDays);
+        reqDueDateInput.value = d.toISOString().slice(0, 10);
+        syncReportFormConditionalFields();
+        if (addDays < 10 && reqUrgentReasonInput) {
+          reqUrgentReasonInput.focus();
+        }
+      });
+    }
+
+    // Global Escape key handler for Report Modal & Detail View
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        if (modalReportRequest && modalReportRequest.style.display === 'flex') {
+          closeReportModal();
+        } else if (reportDetailView && reportDetailView.style.display === 'block') {
+          closeReportDetailPage();
+        }
+      }
+    });
+
+    const btnInspEdit = document.getElementById('btn-insp-edit');
+    if (btnInspEdit) {
+      btnInspEdit.addEventListener('click', () => {
+        const req = reportRequests.find(r => r.id === selectedReportId);
+        if (req) openEditReportModal(req);
+      });
+    }
+    if (btnInspClaim) {
+      btnInspClaim.addEventListener('click', handleClaimReportRequest);
+    }
+    if (btnInspChat) {
+      btnInspChat.addEventListener('click', openContextualChatForSelectedReport);
+    }
+
+    if (itFieldPctRange && itFieldPct) {
+      itFieldPctRange.addEventListener('input', () => {
+        itFieldPct.value = itFieldPctRange.value;
+        itPctDisplay.textContent = itFieldPctRange.value;
+      });
+      itFieldPct.addEventListener('input', () => {
+        const v = Math.max(0, Math.min(100, parseInt(itFieldPct.value) || 0));
+        itFieldPctRange.value = v;
+        itPctDisplay.textContent = v;
+      });
+    }
+
+    if (itConsoleForm) {
+      itConsoleForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        saveITConsoleUpdate(false);
+      });
+    }
+
+    if (btnCompleteItJob) {
+      btnCompleteItJob.addEventListener('click', () => {
+        saveITConsoleUpdate(true);
+      });
     }
   }
 

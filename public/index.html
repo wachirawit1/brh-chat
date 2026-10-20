@@ -2,36 +2,57 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="description" content="BRH Chat — ระบบแชทสำหรับบุคลากรภายในโรงพยาบาล สื่อสารรวดเร็ว ปลอดภัย และใช้งานง่าย" />
-  <title>BRH Chat — Hospital Staff Messenger</title>
-  <link rel="stylesheet" href="index.css?v=1.5" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="ระบบขอรายงานโรงพยาบาลบุรีรัมย์ — ศูนย์คอมพิวเตอร์" />
+  <title>ระบบขอรายงานโรงพยาบาลบุรีรัมย์</title>
+  <link rel="stylesheet" href="index.css?v=4.0" />
 </head>
 <body>
 
-<div id="app">
+<div id="app" class="app-shell">
 
-  <!-- ======================================
-       LEFT SIDEBAR
-       ====================================== -->
-  <aside class="sidebar" id="sidebar">
-
-    <!-- Brand + User Profile -->
-    <div class="sidebar-header">
-      <div class="sidebar-brand">
-        <div class="brand-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M8 2h8v6h6v8h-6v6H8v-6H2V8h6z"/>
-          </svg>
-        </div>
-        <div>
-          <h1>BRH <span>Chat</span></h1>
-          <div class="brand-sub">Hospital Staff Messenger</div>
-        </div>
+  <!-- =========================================================
+       TOP COMMAND BAR (Global Navigation & Identity)
+       ========================================================= -->
+  <header class="topbar" id="topbar">
+    <div class="topbar-brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 2h8v6h6v8h-6v6H8v-6H2V8h6z"/>
+        </svg>
       </div>
+      <div class="brand-title-group">
+        <h1 class="brand-title">ระบบขอรายงาน <span>โรงพยาบาลบุรีรัมย์</span></h1>
+        <span class="brand-subtitle">ศูนย์คอมพิวเตอร์ โรงพยาบาลบุรีรัมย์</span>
+      </div>
+    </div>
 
-      <!-- Logged-in User Profile -->
-      <div class="user-profile" id="user-profile">
+    <!-- Primary Workspace Mode Switcher -->
+    <nav class="workspace-nav" aria-label="สลับโหมดการทำงานหลัก">
+      <button class="workspace-tab active" id="nav-workspace-reports" data-workspace="reports">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+          <line x1="10" y1="9" x2="8" y2="9"/>
+        </svg>
+        <span>ระบบขอรายงานข้อมูล</span>
+        <span class="nav-count-pill" id="reports-pending-pill">0</span>
+      </button>
+
+      <button class="workspace-tab" id="nav-workspace-chat" data-workspace="chat">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        <span>แชท &amp; แจ้งซ่อม IT</span>
+        <span class="nav-count-pill alert" id="chat-unread-pill" style="display:none;">0</span>
+      </button>
+    </nav>
+
+    <!-- Active User Identity & Quick Actions -->
+    <div class="topbar-user" id="user-profile">
+      <div class="user-chip">
         <div class="avatar">
           <div class="avatar-circle avatar-blue" id="my-avatar">--</div>
           <div class="online-dot"></div>
@@ -40,254 +61,748 @@
           <span class="user-profile-name" id="my-name">กำลังโหลด...</span>
           <span class="user-profile-dept" id="my-dept"></span>
         </div>
-        <button class="profile-settings-btn" id="btn-profile-settings" title="ตั้งค่าความเชี่ยวชาญ IT" style="display:none; background:none; border:none; color:var(--gray-500); cursor:pointer; padding:5px; margin-right:6px; display:flex; align-items:center; justify-content:center; border-radius:50%; transition:all 0.2s;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <button class="profile-settings-btn" id="btn-profile-settings" title="ตั้งค่าความเชี่ยวชาญ IT" style="display:none;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
           </svg>
         </button>
-        <button class="logout-btn" id="btn-logout" title="ออกจากระบบ" aria-label="Logout">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <button class="logout-btn" id="btn-logout" title="ออกจากระบบ" aria-label="ออกจากระบบ">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
           </svg>
         </button>
       </div>
     </div>
+  </header>
 
-    <!-- Sidebar Tabs -->
-    <div class="sidebar-tabs" id="sidebar-tabs">
-      <button class="sidebar-tab active" data-tab="chats" id="tab-chats">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-        </svg>
-        แชท
-      </button>
-      <button class="sidebar-tab" data-tab="itboard" id="tab-itboard">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
-        </svg>
-        <span id="tab-itboard-label">IT Board</span>
-        <span class="tab-badge" id="itboard-badge" style="display:none;">0</span>
-      </button>
+  <!-- =========================================================
+       PRIMARY WORKSPACE 1: HOSPITAL REPORT REQUEST PORTAL
+       ========================================================= -->
+  <section class="reports-workspace" id="reports-workspace">
+
+    <!-- =======================================================
+         VIEW 1: FULL-PAGE REPORT REQUEST LIST VIEW
+         ======================================================= -->
+    <div class="reports-list-view" id="reports-list-view">
+      <div class="portal-container">
+
+        <!-- Portal Usage Header (ตามต้นฉบับโรงพยาบาลบุรีรัมย์ พร้อมปุ่มพับเก็บ/แสดงวิธีใช้งาน) -->
+        <div class="portal-usage-banner" id="portal-usage-banner">
+          <div class="portal-usage-content">
+            <div class="portal-usage-top-row">
+              <div class="portal-usage-titles">
+                <h2 class="portal-usage-main-title">ขอข้อมูล</h2>
+                <h3 class="portal-usage-subtitle">วิธีใช้งาน</h3>
+              </div>
+              <button class="btn-toggle-usage" id="btn-toggle-usage-steps" type="button">
+                <span id="toggle-usage-label">ซ่อนวิธีใช้งาน</span>
+                <svg id="toggle-usage-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="18 15 12 9 6 15"/>
+                </svg>
+              </button>
+            </div>
+            <ol class="portal-usage-steps" id="portal-usage-steps">
+              <li>login ด้วย username ของผู้ที่ขอข้อมูลหรือผู้รับมอบ</li>
+              <li>กรอกรายละเอียดตามที่ต้องการ</li>
+              <li class="usage-step-red">โทรแจ้งศูนย์คอมพิวเตอร์ว่ามีการขอข้อมูล หรือปริ้นหน้าขอข้อมูลที่ save แล้ว ส่งเป็นหนังสือมายังศูนย์คอมพิวเตอร์</li>
+              <li>ติดตามสถานะการดำเนินการได้ ว่ามีการอนุมัติให้ดำเนินการรึยัง และใกล้เสร็จหรือยัง</li>
+              <li>ถ้าข้อมูล เสร็จ ทาง จนท.จะส่งข้อมูลตามช่องทางที่ผู้ขอแจ้งไว้ (เช่น E-mail) หรือติดต่อสอบถามและส่งไฟล์สำรองผ่านระบบแชทของรายการนั้นๆ</li>
+              <li>ข้อมูลที่ขอต้องอยู่ภายใต้พรบ.PDPA เพื่อรักษาความลับของผู้ป่วย เช่น ข้อมูลที่ขอจะไม่สามารถระบุตัวตนผู้ป่วยได้โดยจะแสดงข้อมูลตัวเลขในเชิงภาพรวมเท่านั้น</li>
+            </ol>
+          </div>
+        </div>
+
+        <!-- Clean Filter Pills, Search Bar & Primary "ขอข้อมูลใหม่" CTA -->
+        <div class="ledger-toolbar">
+          <div class="ledger-filter-group" role="tablist" aria-label="ตัวกรองรายการคำขอข้อมูล">
+            <button class="ledger-filter-btn active" data-filter="all" type="button">
+              <span>ทั้งหมด</span>
+              <strong class="tabular-num" id="stat-count-all">0</strong>
+            </button>
+            <button class="ledger-filter-btn" data-filter="pending" type="button">
+              <span class="status-dot dot-pending"></span>
+              <span>ยังไม่ดำเนินการ</span>
+              <strong class="tabular-num" id="stat-count-pending">0</strong>
+            </button>
+            <button class="ledger-filter-btn" data-filter="inprogress" type="button">
+              <span class="status-dot dot-progress"></span>
+              <span>กำลังดำเนินการ</span>
+              <strong class="tabular-num" id="stat-count-progress">0</strong>
+            </button>
+            <button class="ledger-filter-btn" data-filter="completed" type="button">
+              <span class="status-dot dot-completed"></span>
+              <span>เสร็จ</span>
+              <strong class="tabular-num" id="stat-count-completed">0</strong>
+            </button>
+            <button class="ledger-filter-btn" data-filter="mine" type="button">
+              <span>งานของฉัน</span>
+              <strong class="tabular-num" id="stat-count-mine">0</strong>
+            </button>
+          </div>
+
+          <div class="ledger-actions-right">
+            <div class="ledger-search-box">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+              </svg>
+              <input type="text" id="report-search-input" placeholder="ค้นหาชื่อรายงาน, ผู้ขอ, กลุ่มงาน, ผู้รับผิดชอบ..." autocomplete="off" />
+            </div>
+
+            <button class="btn-new-report-cta" id="btn-open-report-modal" type="button">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              <span>ขอข้อมูล / รายงานใหม่</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Grouped Report Request Sections (คำขอใหม่ รอรับงาน | กำลังดำเนินการ | เสร็จ) -->
+        <div class="report-grouped-sections" id="report-ledger-tbody">
+          <!-- Populated dynamically by app.js into clean grouped sections -->
+        </div>
+
+      </div>
     </div>
 
-    <!-- Search (for Chats tab) -->
-    <div class="search-container" id="search-container">
-      <input type="text" id="search-input" placeholder="ค้นหาบุคลากร..." autocomplete="off" />
-      <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-      </svg>
+    <!-- =======================================================
+         VIEW 2: FULL-PAGE REPORT REQUEST DETAIL VIEW
+         ======================================================= -->
+    <div class="report-detail-view" id="report-detail-view" style="display:none;">
+      <div class="portal-container detail-page-container">
+
+        <!-- Top Back Navigation & Action Bar -->
+        <div class="detail-nav-bar">
+          <button class="btn-back-to-list" id="btn-back-to-list" type="button">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"/>
+              <polyline points="12 19 5 12 12 5"/>
+            </svg>
+            <span>กลับไปหน้ารายการคำขอรายงาน</span>
+          </button>
+
+          <div class="detail-nav-actions">
+            <button class="btn-sheet-edit" id="btn-insp-edit" type="button" style="display:none;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+              </svg>
+              <span id="btn-insp-edit-label">แก้ไขคำขอ</span>
+            </button>
+
+            <button class="btn-sheet-chat" id="btn-insp-chat" type="button">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+              <span id="btn-insp-chat-label">ทักแชทสอบถามรายละเอียด</span>
+            </button>
+
+            <button class="btn-sheet-claim" id="btn-insp-claim" type="button" style="display:none;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              <span>กดรับงานคิวรี่ข้อมูลนี้</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Hero Card: Report Title, Badges & Progress -->
+        <div class="detail-hero-card">
+          <div class="detail-hero-top">
+            <div class="detail-badges-left">
+              <span class="sheet-doc-id" id="insp-id">#REP-0001</span>
+              <span class="sheet-urgency-badge" id="insp-urgency">ปกติ ภายใน 10 วัน</span>
+              <span class="sheet-timestamp" id="insp-created-at">ยื่นคำขอเมื่อ: -</span>
+            </div>
+            <span class="sheet-status-badge" id="insp-status-badge">ยังไม่ดำเนินการ</span>
+          </div>
+
+          <h1 class="detail-main-title" id="insp-title">ชื่อรายงาน</h1>
+
+          <div class="detail-progress-banner">
+            <div class="detail-progress-labels">
+              <span>ความคืบหน้าการจัดทำรายงานข้อมูล</span>
+              <strong class="tabular-num" id="insp-hero-pct">0%</strong>
+            </div>
+            <div class="detail-progress-track">
+              <div class="detail-progress-fill" id="insp-hero-bar" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Full-Page 2-Column Content Layout -->
+        <div class="detail-content-grid">
+
+          <!-- Left Column: Full Request Specification -->
+          <div class="detail-spec-column">
+
+            <!-- Card 1: Requester Info -->
+            <div class="detail-card">
+              <div class="detail-card-header">
+                <h3>ข้อมูลผู้ขอรายงานและหน่วยงาน</h3>
+              </div>
+              <div class="detail-info-grid">
+                <div class="detail-info-item">
+                  <span class="cell-label">ผู้ขอข้อมูล</span>
+                  <strong class="cell-value" id="insp-requester-name">-</strong>
+                  <div id="insp-proxy-info" class="insp-proxy-tag" style="display: none;"></div>
+                </div>
+                <div class="detail-info-item">
+                  <span class="cell-label">ตำแหน่ง</span>
+                  <span class="cell-value" id="insp-requester-pos">-</span>
+                </div>
+                <div class="detail-info-item">
+                  <span class="cell-label">กลุ่มงาน / ฝ่าย / ศูนย์</span>
+                  <span class="cell-value" id="insp-dept">-</span>
+                </div>
+                <div class="detail-info-item">
+                  <span class="cell-label">เบอร์โทรศัพท์ติดต่อ</span>
+                  <span class="cell-value tabular-num" id="insp-phone">-</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Card 2: Query Specification & Conditions -->
+            <div class="detail-card">
+              <div class="detail-card-header">
+                <h3>รายละเอียดเงื่อนไขการคิวรี่ข้อมูลและรูปแบบรายงาน</h3>
+              </div>
+
+              <div class="detail-info-grid">
+                <div class="detail-info-item">
+                  <span class="cell-label">ความถี่ของการใช้ข้อมูล</span>
+                  <span class="cell-value" id="insp-frequency">-</span>
+                </div>
+                <div class="detail-info-item">
+                  <span class="cell-label">กำหนดรับข้อมูล</span>
+                  <strong class="cell-value tabular-num" id="insp-due-date">-</strong>
+                </div>
+              </div>
+
+              <div class="detail-block-item">
+                <span class="cell-label">มีความประสงค์ขอข้อมูลเพื่อ</span>
+                <div class="cell-tags" id="insp-purposes"></div>
+              </div>
+
+              <div class="detail-block-item urgent-callout" id="insp-urgent-reason-row" style="display:none;">
+                <span class="cell-label">เหตุผลในการขอด่วน</span>
+                <div class="cell-value" id="insp-urgent-reason">-</div>
+              </div>
+
+              <div class="detail-block-item">
+                <span class="cell-label">รายละเอียดที่ต้องการ</span>
+                <div class="cell-pre" id="insp-details">-</div>
+              </div>
+
+              <div class="detail-block-item">
+                <span class="cell-label">ช่องทางรับข้อมูล</span>
+                <div class="detail-channel-box" id="insp-channel">-</div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Right Column: IT Center Execution & Job Closure Log -->
+          <div class="detail-it-column">
+            <div class="detail-card it-log-card">
+              <div class="detail-card-header it-card-header">
+                <h3>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 11l3 3L22 4"/>
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                  </svg>
+                  บันทึกการดำเนินงาน
+                </h3>
+                <span class="it-badge-sub">ศูนย์คอมพิวเตอร์</span>
+              </div>
+
+              <!-- Read-only view for general staff -->
+              <div class="it-console-readonly" id="it-console-readonly">
+                <div class="detail-info-grid">
+                  <div class="detail-info-item">
+                    <span class="cell-label">สถานะงาน</span>
+                    <strong class="cell-value" id="ro-status">-</strong>
+                  </div>
+                  <div class="detail-info-item">
+                    <span class="cell-label">ผู้รับผิดชอบ</span>
+                    <strong class="cell-value" id="ro-owner">ยังไม่มีผู้รับงาน</strong>
+                  </div>
+                  <div class="detail-info-item">
+                    <span class="cell-label">วันเริ่มทำ</span>
+                    <span class="cell-value tabular-num" id="ro-start-date">-</span>
+                  </div>
+                  <div class="detail-info-item">
+                    <span class="cell-label">วัน-เวลาที่เสร็จ</span>
+                    <span class="cell-value tabular-num" id="ro-completed-date">-</span>
+                  </div>
+                  <div class="detail-info-item">
+                    <span class="cell-label">% Complete</span>
+                    <strong class="cell-value tabular-num" id="ro-pct">0%</strong>
+                  </div>
+                </div>
+                <div class="detail-block-item">
+                  <span class="cell-label">บันทึกการส่งงาน / หมายเหตุจาก IT</span>
+                  <div class="detail-channel-box" id="ro-notes">-</div>
+                </div>
+              </div>
+
+              <!-- Editable Console for IT / Admin -->
+              <form class="it-console-form" id="it-console-form" style="display:none;">
+                <div class="console-field">
+                  <label for="it-field-status">สถานะงาน</label>
+                  <select id="it-field-status">
+                    <option value="ยังไม่ดำเนินการ">ยังไม่ดำเนินการ</option>
+                    <option value="กำลังดำเนินการ">กำลังดำเนินการ</option>
+                    <option value="เสร็จ">เสร็จ</option>
+                  </select>
+                </div>
+
+                <div class="console-field">
+                  <label for="it-field-owner">เจ้าหน้าที่ผู้รับผิดชอบ</label>
+                  <input type="text" id="it-field-owner" placeholder="ระบุชื่อเจ้าหน้าที่ศูนย์คอม..." />
+                </div>
+
+                <div class="console-grid-row two-col">
+                  <div class="console-field">
+                    <label for="it-field-start">วันเริ่มทำ</label>
+                    <input type="date" id="it-field-start" />
+                  </div>
+                  <div class="console-field">
+                    <label for="it-field-completed">วันเสร็จ</label>
+                    <input type="date" id="it-field-completed" />
+                    <span class="field-hint" id="it-completed-time-hint" style="display:none; color: var(--emerald-700); font-weight: 600;"></span>
+                  </div>
+                </div>
+
+                <div class="console-field">
+                  <label for="it-field-pct">ความคืบหน้า % Complete: <span id="it-pct-display">0</span>%</label>
+                  <div class="pct-control-wrap">
+                    <input type="range" id="it-field-pct-range" min="0" max="100" step="5" value="0" />
+                    <input type="number" id="it-field-pct" min="0" max="100" value="0" class="tabular-num" />
+                  </div>
+                </div>
+
+                <div class="console-field">
+                  <label for="it-field-notes">บันทึกการส่งข้อมูล</label>
+                  <textarea id="it-field-notes" rows="4" placeholder="ระบุรายละเอียดการส่งงาน เช่น ส่งไฟล์ Excel ทางเมลแล้ว..."></textarea>
+                </div>
+
+                <div class="console-actions-stack">
+                  <button type="submit" class="btn-save-it-log" id="btn-save-it-log">
+                    บันทึกการอัปเดตสถานะ
+                  </button>
+                  <button type="button" class="btn-complete-it-job" id="btn-complete-it-job">
+                    ✓ บันทึกสถานะ เสร็จ 100%
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
     </div>
 
-    <!-- Chat List (Tab: chats) -->
-    <div class="chat-list" id="chat-list">
-      <!-- Populated by JS -->
-    </div>
+  </section>
 
-    <!-- IT Board Panel (Tab: itboard) -->
-    <div class="itboard-panel" id="itboard-panel" style="display:none;">
-      <!-- Create Post Button (for staff) -->
-      <div class="itboard-create" id="itboard-create">
-        <button class="btn-create-post" id="btn-create-post">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+  <!-- =========================================================
+       PRIMARY WORKSPACE 2: PRESERVED REAL-TIME CHAT & IT BOARD
+       ========================================================= -->
+  <div class="chat-workspace" id="chat-workspace" style="display:none;">
+
+    <!-- LEFT SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+
+      <!-- Sidebar Tabs (Chats vs IT Repair Board) -->
+      <div class="sidebar-tabs" id="sidebar-tabs">
+        <button class="sidebar-tab active" data-tab="chats" id="tab-chats">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
           </svg>
-          แจ้งปัญหา IT
+          แชทสนทนา
+        </button>
+        <button class="sidebar-tab" data-tab="itboard" id="tab-itboard">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+          </svg>
+          <span id="tab-itboard-label">แจ้งซ่อม IT</span>
+          <span class="tab-badge" id="itboard-badge" style="display:none;">0</span>
         </button>
       </div>
-      <!-- Posts list -->
-      <div class="itboard-list" id="itboard-list">
+
+      <!-- Search (for Chats tab) -->
+      <div class="search-container" id="search-container">
+        <input type="text" id="search-input" placeholder="ค้นหาบุคลากร..." autocomplete="off" />
+        <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+      </div>
+
+      <!-- Chat List (Tab: chats) -->
+      <div class="chat-list" id="chat-list">
         <!-- Populated by JS -->
       </div>
-    </div>
 
-  </aside>
-
-  <!-- ======================================
-       MAIN CHAT WINDOW
-       ====================================== -->
-  <main class="chat-main" id="chat-main">
-
-    <!-- Empty State (no chat selected) -->
-    <div class="empty-state" id="empty-state">
-      <div class="empty-icon">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-        </svg>
-      </div>
-      <h3>เลือกแชทเพื่อเริ่มสนทนา</h3>
-      <p>คลิกที่รายชื่อด้านซ้ายเพื่อเริ่มแชท</p>
-    </div>
-
-    <!-- Chat View (shown when chat is selected) -->
-    <div class="chat-view" id="chat-view" style="display:none;">
-
-      <!-- Chat Header -->
-      <div class="chat-header" id="chat-header">
-        <div class="chat-header-left">
-          <button class="mobile-back-btn" id="btn-mobile-back" type="button" aria-label="Back to conversations" title="Back to conversations">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="m15 18-6-6 6-6"/>
+      <!-- IT Board Panel (Tab: itboard) -->
+      <div class="itboard-panel" id="itboard-panel" style="display:none;">
+        <div class="itboard-create" id="itboard-create">
+          <button class="btn-create-post" id="btn-create-post">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
-          </button>
-          <div class="avatar">
-            <div class="avatar-circle avatar-teal" id="header-avatar">--</div>
-            <div class="online-dot" id="header-online-dot" style="display:none;"></div>
-          </div>
-          <div class="chat-header-info">
-            <h2 id="header-name">
-              <span id="header-name-text"></span>
-              <span class="dept-tag" id="header-dept"></span>
-            </h2>
-            <div class="status-text" id="header-status">ออฟไลน์</div>
-          </div>
-        </div>
-        <div class="chat-header-actions">
-          <button class="header-btn" id="btn-search-msg" title="ค้นหาข้อความ" aria-label="Search messages">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-            </svg>
-          </button>
-          <button class="header-btn" id="btn-gallery" title="ห้องสมุดไฟล์" aria-label="Media and files gallery">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-            </svg>
-          </button>
-          <button class="header-btn" id="btn-call" title="โทร" aria-label="Voice call">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
-            </svg>
-          </button>
-          <button class="header-btn" id="btn-video" title="วิดีโอคอล" aria-label="Video call">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
-            </svg>
-          </button>
-          <button class="header-btn" id="btn-info" title="ข้อมูล" aria-label="Info">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>
-            </svg>
+            แจ้งปัญหาซ่อมทั่วไป
           </button>
         </div>
-      </div>
-      
-      <!-- Message Search Bar (Hidden by default) -->
-      <div class="msg-search-bar" id="msg-search-bar" style="display:none;">
-        <input type="text" id="msg-search-input" placeholder="ค้นหาในแชทนี้..." autocomplete="off" />
-        <button id="btn-close-msg-search" title="ปิดการค้นหา">✕</button>
-      </div>
-
-      <!-- Chat Content Row (Messages + Gallery) -->
-      <div class="chat-content-row" style="display: flex; flex: 1; min-height: 0; overflow: hidden; position: relative;">
-        <!-- Messages -->
-        <div class="messages-area" id="messages-area">
+        <div class="itboard-list" id="itboard-list">
           <!-- Populated by JS -->
         </div>
+      </div>
 
-        <!-- Sidebar Gallery (Hidden by default) -->
-        <div class="chat-gallery-sidebar" id="chat-gallery-sidebar" style="display: none;">
-          <div class="gallery-header">
-            <h3>ห้องสมุดไฟล์</h3>
-            <button id="btn-close-gallery" title="ปิดคลังไฟล์">✕</button>
-          </div>
-          <div class="gallery-tabs">
-            <button class="gallery-tab active" data-tab="media">รูปภาพ / วิดีโอ</button>
-            <button class="gallery-tab" data-tab="docs">เอกสาร</button>
-          </div>
-          <div class="gallery-content">
-            <div class="gallery-panel active" id="gallery-panel-media">
-              <div class="gallery-grid" id="gallery-grid-media"></div>
-              <div class="gallery-empty" id="gallery-empty-media">ไม่มีรูปภาพหรือวิดีโอ</div>
+    </aside>
+
+    <!-- MAIN CHAT WINDOW -->
+    <main class="chat-main" id="chat-main">
+
+      <!-- Empty State (no chat selected) -->
+      <div class="empty-state" id="empty-state">
+        <div class="empty-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        </div>
+        <h3 id="empty-state-title">เลือกแชทเพื่อเริ่มสนทนา</h3>
+        <p id="empty-state-desc">คลิกที่รายชื่อด้านซ้ายเพื่อพูดคุย หรือส่งไฟล์ Excel ข้อมูลรายงาน</p>
+      </div>
+
+      <!-- Chat View (shown when chat is selected) -->
+      <div class="chat-view" id="chat-view" style="display:none;">
+
+        <!-- Chat Header -->
+        <div class="chat-header" id="chat-header">
+          <div class="chat-header-left">
+            <button class="mobile-back-btn" id="btn-mobile-back" title="ย้อนกลับ" aria-label="Back to chat list" style="display:none;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+            </button>
+            <div class="avatar">
+              <div class="avatar-circle avatar-teal" id="header-avatar">--</div>
+              <div class="online-dot" id="header-online-dot" style="display:none;"></div>
             </div>
-            <div class="gallery-panel" id="gallery-panel-docs">
-              <div class="gallery-list" id="gallery-list-docs"></div>
-              <div class="gallery-empty" id="gallery-empty-docs">ไม่มีไฟล์เอกสาร</div>
+            <div class="chat-header-info">
+              <h2 id="header-name">
+                <span id="header-name-text"></span>
+                <span class="dept-tag" id="header-dept"></span>
+              </h2>
+              <div class="status-text" id="header-status">ออฟไลน์</div>
+            </div>
+          </div>
+          <div class="chat-header-actions">
+            <button class="header-btn" id="btn-back-to-reports" title="กลับไปหน้าตารางขอรายงาน" type="button">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+            </button>
+            <button class="header-btn" id="btn-search-msg" title="ค้นหาข้อความ" aria-label="Search messages">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+              </svg>
+            </button>
+            <button class="header-btn" id="btn-gallery" title="ห้องสมุดไฟล์" aria-label="Media and files gallery">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+              </svg>
+            </button>
+            <button class="header-btn" id="btn-info" title="ข้อมูลผู้ติดต่อ" aria-label="Info">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Contextual Report Request Banner inside Chat (shows active report being discussed) -->
+        <div class="chat-report-context-banner" id="chat-report-context-banner" style="display:none;">
+          <div class="chat-report-context-left">
+            <span class="chat-ctx-id tabular-num" id="chat-ctx-id">#REP-0001</span>
+            <div class="chat-ctx-meta">
+              <strong class="chat-ctx-title" id="chat-ctx-title">หัวข้อรายงาน</strong>
+              <span class="chat-ctx-sub" id="chat-ctx-sub">ช่องทางรับข้อมูล: -</span>
+            </div>
+          </div>
+          <div class="chat-report-context-actions">
+            <button type="button" class="btn-chat-ctx-action" id="btn-chat-ctx-insert-ref" title="แทรกรหัสใบงานลงในช่องข้อความ">
+              แนบรหัสใบงาน
+            </button>
+            <button type="button" class="btn-chat-ctx-action primary" id="btn-chat-ctx-view-sheet">
+              เปิดดูใบงานนี้
+            </button>
+            <button type="button" class="btn-chat-ctx-close" id="btn-chat-ctx-close" title="ซ่อนแถบอ้างอิงใบงาน">✕</button>
+          </div>
+        </div>
+        
+        <!-- Message Search Bar (Hidden by default) -->
+        <div class="msg-search-bar" id="msg-search-bar" style="display:none;">
+          <input type="text" id="msg-search-input" placeholder="ค้นหาในแชทนี้..." autocomplete="off" />
+          <button id="btn-close-msg-search" title="ปิดการค้นหา">✕</button>
+        </div>
+
+        <!-- Chat Content Row (Messages + Gallery) -->
+        <div class="chat-content-row" style="display: flex; flex: 1; min-height: 0; overflow: hidden; position: relative;">
+          <div class="messages-area" id="messages-area"></div>
+
+          <div class="chat-gallery-sidebar" id="chat-gallery-sidebar" style="display: none;">
+            <div class="gallery-header">
+              <h3>ห้องสมุดไฟล์</h3>
+              <button id="btn-close-gallery" title="ปิดคลังไฟล์">✕</button>
+            </div>
+            <div class="gallery-tabs">
+              <button class="gallery-tab active" data-tab="media">รูปภาพ / วิดีโอ</button>
+              <button class="gallery-tab" data-tab="docs">เอกสาร</button>
+            </div>
+            <div class="gallery-content">
+              <div class="gallery-panel active" id="gallery-panel-media">
+                <div class="gallery-grid" id="gallery-grid-media"></div>
+                <div class="gallery-empty" id="gallery-empty-media">ไม่มีรูปภาพหรือวิดีโอ</div>
+              </div>
+              <div class="gallery-panel" id="gallery-panel-docs">
+                <div class="gallery-list" id="gallery-list-docs"></div>
+                <div class="gallery-empty" id="gallery-empty-docs">ไม่มีไฟล์เอกสาร</div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- Typing Indicator -->
-      <div class="typing-indicator" id="typing-indicator" style="display:none; padding: 0 28px 4px;">
-        <div class="typing-dots">
-          <span></span><span></span><span></span>
+        <!-- Typing Indicator -->
+        <div class="typing-indicator" id="typing-indicator" style="display:none; padding: 0 28px 4px;">
+          <div class="typing-dots">
+            <span></span><span></span><span></span>
+          </div>
+          <span id="typing-name">กำลังพิมพ์...</span>
         </div>
-        <span id="typing-name">กำลังพิมพ์...</span>
-      </div>
 
-      <!-- File Preview (before send) -->
-      <div class="file-preview" id="file-preview" style="display:none;">
-        <div class="file-preview-inner">
-          <img id="file-preview-img" alt="Preview" style="display:none;" />
-          <div class="file-preview-video" id="file-preview-video" style="display:none;">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="5 3 19 12 5 21 5 3"/>
+        <!-- File Preview (before send) -->
+        <div class="file-preview" id="file-preview" style="display:none;">
+          <div class="file-preview-inner">
+            <img id="file-preview-img" alt="Preview" style="display:none;" />
+            <div class="file-preview-video" id="file-preview-video" style="display:none;">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+              <span id="file-preview-video-name"></span>
+            </div>
+            <div class="file-preview-info">
+              <span id="file-preview-name"></span>
+              <span id="file-preview-size"></span>
+            </div>
+            <button class="file-preview-remove" id="file-preview-remove" title="ยกเลิก">✕</button>
+          </div>
+          <div class="upload-progress" id="upload-progress" style="display:none;">
+            <div class="upload-progress-bar" id="upload-progress-bar"></div>
+          </div>
+        </div>
+
+        <!-- Quick Templates (IT Only) -->
+        <div class="quick-templates" id="quick-templates" style="display:none;">
+          <div class="quick-templates-chips" id="quick-templates-chips"></div>
+          <button class="template-settings-btn" id="btn-template-settings" title="ปรับแต่งข้อความตอบด่วน">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
             </svg>
-            <span id="file-preview-video-name"></span>
+          </button>
+        </div>
+
+        <!-- Input Bar -->
+        <div class="input-bar" id="input-bar">
+          <button class="attach-btn" id="btn-attach" title="แนบไฟล์ (เอกสาร/รูปภาพ/วิดีโอ/เสียง ไม่เกิน 25MB)" aria-label="Attach file">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+            </svg>
+          </button>
+          <input type="file" id="file-input" accept="image/*,video/*,audio/*,.xls,.xlsx,.csv,.pdf,.doc,.docx,.ppt,.pptx,.zip,.rar,.7z,.txt" style="display:none;" />
+          
+          <div class="input-wrapper" id="input-wrapper">
+            <input type="text" id="message-input" placeholder="พิมพ์ข้อความ..." autocomplete="off" />
           </div>
-          <div class="file-preview-info">
-            <span id="file-preview-name"></span>
-            <span id="file-preview-size"></span>
+          
+          <div class="recording-overlay" id="recording-overlay" style="display:none;">
+            <div class="recording-dot"></div>
+            <span id="recording-time">0:00</span>
+            <button class="cancel-record-btn" id="btn-cancel-record" title="ยกเลิกอัดเสียง">✕</button>
           </div>
-          <button class="file-preview-remove" id="file-preview-remove" title="ยกเลิก">✕</button>
+
+          <button class="record-btn" id="btn-record" title="อัดเสียง" aria-label="Record Voice">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="22"/>
+            </svg>
+          </button>
+
+          <button class="send-btn" id="btn-send" title="ส่ง" aria-label="Send message">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </button>
         </div>
-        <div class="upload-progress" id="upload-progress" style="display:none;">
-          <div class="upload-progress-bar" id="upload-progress-bar"></div>
-        </div>
+
       </div>
 
-      <!-- Quick Templates (IT Only) -->
-      <div class="quick-templates" id="quick-templates" style="display:none;">
-        <div class="quick-templates-chips" id="quick-templates-chips">
-          <!-- Populated dynamically by JS -->
-        </div>
-        <button class="template-settings-btn" id="btn-template-settings" title="ปรับแต่งข้อความตอบด่วน">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-          </svg>
-        </button>
-      </div>
+    </main>
 
-      <!-- Input Bar -->
-      <div class="input-bar" id="input-bar">
-        <button class="attach-btn" id="btn-attach" title="แนบไฟล์ (รูปภาพ/วิดีโอ/Excel ไม่เกิน 25MB)" aria-label="Attach file">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
-          </svg>
-        </button>
-        <!-- Hidden file input -->
-        <input type="file" id="file-input" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,.xls,.xlsx,.csv,audio/*" style="display:none;" />
-        
-        <div class="input-wrapper" id="input-wrapper">
-          <input type="text" id="message-input" placeholder="พิมพ์ข้อความ..." autocomplete="off" />
-        </div>
-        
-        <!-- Recording Timer Overlay -->
-        <div class="recording-overlay" id="recording-overlay" style="display:none;">
-          <div class="recording-dot"></div>
-          <span id="recording-time">0:00</span>
-          <button class="cancel-record-btn" id="btn-cancel-record" title="ยกเลิกอัดเสียง">✕</button>
-        </div>
+  </div>
 
-        <!-- Record Button -->
-        <button class="record-btn" id="btn-record" title="อัดเสียง" aria-label="Record Voice">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-            <line x1="12" y1="19" x2="12" y2="22"/>
-          </svg>
-        </button>
+</div>
 
-        <button class="send-btn" id="btn-send" title="ส่ง" aria-label="Send message">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
-          </svg>
-        </button>
-      </div>
-
+<!-- =========================================================
+     MODAL: FULL HOSPITAL DATA / REPORT REQUEST FORM (ตามแบบฟอร์มต้นฉบับ)
+     ========================================================= -->
+<div class="modal-overlay" id="modal-report-request" style="display:none;">
+  <div class="modal-card modal-report-card">
+    <div class="modal-header">
+      <h3>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+        <span id="modal-report-title-text">แบบฟอร์มขอข้อมูล / ขอรายงาน (ศูนย์คอมพิวเตอร์)</span>
+      </h3>
+      <button class="modal-close" id="modal-close-report" type="button">✕</button>
     </div>
 
-  </main>
+    <form id="form-report-request" class="modal-body report-form-body">
+      <div class="report-form-notice">
+        กรุณาระบุเงื่อนไขข้อมูลที่ต้องการให้ชัดเจน เพื่อให้เจ้าหน้าที่ศูนย์คอมพิวเตอร์สามารถคิวรี่ข้อมูลจากฐานข้อมูลโรงพยาบาล (เช่น HOMC) และจัดทำไฟล์ Excel ส่งให้ได้อย่างถูกต้องรวดเร็ว
+      </div>
 
+      <div class="form-grid-2col">
+        <div class="form-group" style="position: relative;">
+          <div class="form-label-row">
+            <label for="req-name" style="margin-bottom: 0;">ผู้ขอข้อมูล <span class="required">*</span></label>
+            <button type="button" id="btn-use-my-info" class="btn-use-my-info" title="คลิกเพื่อดึงข้อมูลของฉันที่ล็อกอินอยู่กลับมา">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+              ใช้ข้อมูลของฉัน
+            </button>
+          </div>
+          <div class="autocomplete-container">
+            <input type="text" id="req-name" required placeholder="พิมพ์ชื่อเพื่อค้นหาบุคลากรใน รพ. (PM)..." autocomplete="off" />
+            <div id="req-name-spinner" class="autocomplete-spinner" style="display: none;"></div>
+            <div id="req-name-suggestions" class="autocomplete-dropdown" style="display: none;"></div>
+          </div>
+          <span class="field-hint">พิมพ์ชื่อเพื่อค้นหาจากฐานข้อมูล หรือพิมพ์ระบุเองได้</span>
+        </div>
+
+        <div class="form-group">
+          <label for="req-position">ตำแหน่ง <span class="required">*</span></label>
+          <input type="text" id="req-position" required placeholder="เช่น พยาบาลวิชาชีพชำนาญการ, นายแพทย์, เภสัชกร..." />
+          <span class="field-hint">ลงให้อัตโนมัติเมื่อเลือกชื่อ หรือพิมพ์ระบุเองได้</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="req-title">ชื่องาน <span class="required">*</span></label>
+        <input type="text" id="req-title" required placeholder="หัวข้อเรื่อง report เช่น &quot;ยอดผู้ป่วยในปีงบ 69&quot;" maxlength="255" />
+        <span class="field-hint">หัวข้อเรื่อง report เช่น "ยอดผู้ป่วยในปีงบ 69"</span>
+      </div>
+
+      <div class="form-grid-2col">
+        <div class="form-group">
+          <label for="req-dept">กลุ่มงาน/ฝ่าย/ศูนย์ <span class="required">*</span></label>
+          <input type="text" id="req-dept" required placeholder="เช่น OPD, IPD, กลุ่มงานเภสัชกรรม..." />
+        </div>
+
+        <div class="form-group">
+          <label for="req-phone">โทรติดต่อ <span class="required">*</span></label>
+          <input type="text" id="req-phone" required placeholder="โทรภายใน หรือ เบอร์มือถือ" />
+          <span class="field-hint">โทรภายใน / มือถือ</span>
+        </div>
+      </div>
+
+      <div class="form-grid-2col">
+        <div class="form-group">
+          <label>มีความประสงค์ขอข้อมูลเพื่อ</label>
+          <div class="checkbox-stack">
+            <label class="check-item"><input type="checkbox" name="req_purpose" value="ติดตามงาน PCT/ นโยบาย" /> <span>ติดตามงาน PCT/ นโยบาย</span></label>
+            <label class="check-item"><input type="checkbox" name="req_purpose" id="req-purpose-meeting-chk" value="ประชุม วันที่" /> <span>ประชุม (ระบุวันที่ประชุม)</span></label>
+            <label class="check-item"><input type="checkbox" name="req_purpose" value="งานประจำ" checked /> <span>งานประจำ</span></label>
+            <label class="check-item"><input type="checkbox" name="req_purpose" value="วิจัย/เลื่อนระดับ" /> <span>วิจัย/เลื่อนระดับ</span></label>
+            <label class="check-item"><input type="checkbox" name="req_purpose" value="หน่วยราชการอื่นขอ" /> <span>หน่วยราชการอื่นขอ</span></label>
+            <label class="check-item"><input type="checkbox" id="req-purpose-other-chk" value="อื่นๆ" /> <span>ระบุวัตถุประสงค์เพิ่มเติม</span></label>
+            <input type="text" id="req-purpose-other-text" class="sub-specify-input" style="display:none;" placeholder="ระบุวันที่ประชุม หรือวัตถุประสงค์เพิ่มเติม..." />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="req-frequency">ความถี่ของการใช้ข้อมูล <span class="required">*</span></label>
+          <select id="req-frequency">
+            <option value="ใช้ครั้งเดียว">ใช้ครั้งเดียว (เฉพาะกิจ)</option>
+            <option value="รายเดือน">รายเดือน</option>
+            <option value="รายไตรมาส">รายไตรมาส</option>
+            <option value="รายปีงบประมาณ">รายปีงบประมาณ</option>
+            <option value="รายสัปดาห์">รายสัปดาห์</option>
+            <option value="อื่นๆ">ระบุความถี่เอง...</option>
+          </select>
+          <input type="text" id="req-frequency-other" class="sub-specify-input" style="margin-top:8px; display:none;" placeholder="ระบุช่วงเวลาหรือความถี่ที่ต้องการ..." />
+          <span class="field-hint">เลือกรอบความถี่ในการใช้ข้อมูล</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="req-details">รายละเอียดที่ต้องการ <span class="required">*</span></label>
+        <textarea id="req-details" rows="4" required placeholder="ระบุเงื่อนไขข้อมูลที่ต้องการให้คิวรี่ เช่น ช่วงวันที่เริ่มต้น-สิ้นสุด, รหัสโรค ICD-10, คอลัมน์ที่ต้องการในไฟล์ Excel (HN, AN, ชื่อ-สกุล, สิทธิ์การรักษา ฯลฯ)..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="req-channel">รายละเอียดช่องทางรับข้อมูล</label>
+        <div class="channel-preset-chips" id="req-channel-chips">
+          <button type="button" class="channel-chip" data-channel-prefix="E-mail: " data-placeholder="กรอกที่อยู่ E-mail ของท่าน เช่น example@gmail.com">ส่งทาง E-mail</button>
+          <button type="button" class="channel-chip" data-channel-prefix="LINE: " data-placeholder="กรอก LINE ID หรือเบอร์โทรศัพท์ที่ผูก LINE ของท่าน">ส่งทาง LINE</button>
+          <button type="button" class="channel-chip" data-channel-value="รับไฟล์ผ่านแชทในระบบนี้">รับผ่านแชทในระบบนี้</button>
+        </div>
+        <input type="text" id="req-channel" placeholder="ระบุ E-mail, LINE ID หรือช่องทางที่ต้องการให้ส่งไฟล์รายงาน..." maxlength="255" />
+        <span class="field-hint">ส่วนใหญ่แนะนำให้ระบุ E-mail หรือ LINE (หากลืมกรอก เจ้าหน้าที่สามารถติดต่อและส่งไฟล์สำรองผ่านแชทของระบบนี้ได้)</span>
+      </div>
+
+      <div class="form-grid-3col">
+        <div class="form-group">
+          <label for="req-due-date">กำหนดรับข้อมูล</label>
+          <input type="date" id="req-due-date" />
+        </div>
+
+        <div class="form-group">
+          <label for="req-urgency">ความเร่งด่วน</label>
+          <select id="req-urgency">
+            <option value="ปกติ ภายใน 10 วัน">ปกติ ภายใน 10 วัน</option>
+            <option value="ด่วน ภายใน 5 วัน">ด่วน ภายใน 5 วัน</option>
+            <option value="ด่วนมาก ภายใน 3 วัน">ด่วนมาก ภายใน 3 วัน</option>
+          </select>
+          <span class="field-hint">ขอรับข้อมูลตามระดับความเร่งด่วน</span>
+        </div>
+
+        <div class="form-group" id="req-urgent-reason-group">
+          <label for="req-urgent-reason">เหตุผลในการขอด่วน <span class="required" id="req-urgent-reason-req" style="display:none;">*</span></label>
+          <input type="text" id="req-urgent-reason" placeholder="ระบุเหตุผลความจำเป็นเร่งด่วน..." />
+          <span class="field-hint" id="req-urgent-reason-hint">กรอกเมื่อเลือก ด่วน หรือ ด่วนมาก</span>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="padding: 14px 0 0 0; border-top: 1px solid var(--grid-line); margin-top: 10px;">
+        <button type="button" class="btn-secondary" id="btn-cancel-report">ยกเลิก</button>
+        <button type="submit" class="btn-primary" id="btn-submit-report">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+          <span id="btn-submit-report-label">ส่งคำขอข้อมูลรายงาน</span>
+        </button>
+      </div>
+    </form>
+  </div>
 </div>
 
 <!-- Image Lightbox -->
@@ -304,7 +819,7 @@
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
         </svg>
-        แจ้งปัญหา IT
+        แจ้งปัญหาซ่อม IT ทั่วไป
       </h3>
       <button class="modal-close" id="modal-close-post">✕</button>
     </div>
@@ -317,16 +832,14 @@
         <label for="post-description">รายละเอียดเพิ่มเติม</label>
         <textarea id="post-description" rows="4" placeholder="อธิบายปัญหาเพิ่มเติม เช่น อยู่ตึกไหน ชั้นอะไร เครื่องเลขอะไร..."></textarea>
       </div>
-      <div class="form-group" id="recommendation-area" style="display:none; background:var(--emerald-50); border: 1px solid var(--emerald-200); border-radius:10px; padding:15px; margin-top:15px;">
-        <h4 style="margin:0 0 10px 0; font-size:13.5px; color:var(--emerald-800); display:flex; align-items:center; gap:8px; font-weight:600;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--emerald-600);">
+      <div class="form-group" id="recommendation-area" style="display:none;">
+        <h4 class="rec-heading">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
           </svg>
           เจ้าหน้าที่ IT แนะนำสำหรับปัญหานี้
         </h4>
-        <div id="recommended-staff-list" style="display:flex; flex-direction:column; gap:10px;">
-          <!-- Populated by JS -->
-        </div>
+        <div id="recommended-staff-list" style="display:flex; flex-direction:column; gap:10px;"></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -359,15 +872,11 @@
           <label for="new-template-input">เพิ่มข้อความใหม่</label>
           <input type="text" id="new-template-input" placeholder="พิมพ์ข้อความตอบด่วน..." maxlength="255" autocomplete="off" />
         </div>
-        <button class="btn-primary" id="btn-add-template" style="height:44px; padding:0 20px;">
-          เพิ่ม
-        </button>
+        <button class="btn-primary" id="btn-add-template" style="height:44px; padding:0 20px;">เพิ่ม</button>
       </div>
       <div class="form-group">
         <label>รายการข้อความตอบด่วนของคุณ</label>
-        <div class="template-list-manage" id="template-list-manage" style="max-height:240px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; border: 1px solid var(--gray-200); border-radius:8px; padding:10px; background:var(--gray-50);">
-          <!-- Dynamic custom templates list -->
-        </div>
+        <div class="template-list-manage" id="template-list-manage"></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -390,40 +899,36 @@
     </div>
     <div class="modal-body">
       <p style="font-size: 13.5px; color: var(--gray-600); margin-bottom: 18px; line-height: 1.5;">
-        พิมพ์ชื่อโปรแกรมหรือความเชี่ยวชาญของคุณ (เช่น HOSxP, PACS, Network) แล้วกด Enter เพื่อให้ระบบแนะนำคุณให้ถูกคน
+        พิมพ์ชื่อโปรแกรมหรือความเชี่ยวชาญของคุณ (เช่น HOMC, PACS, SQL, Report) แล้วกด Enter เพื่อให้ระบบแนะนำคุณให้ถูกคน
       </p>
       <div class="specialties-tag-container">
         <div class="tag-input-wrapper">
           <input type="text" id="specialty-tag-input" placeholder="พิมพ์โปรแกรม/ทักษะ แล้วกด Enter" autocomplete="off" />
         </div>
-        <div class="specialty-tags-list" id="specialty-tags-list">
-          <!-- Populated by JS -->
-        </div>
+        <div class="specialty-tags-list" id="specialty-tags-list"></div>
         <div class="suggested-tags">
           <span class="suggested-tags-title">คำแนะนำที่พบบ่อย:</span>
           <div class="suggested-tags-list" id="suggested-tags-list">
-            <button class="suggested-tag-btn">HOMC</button>
-            <button class="suggested-tag-btn">PACS</button>
-            <button class="suggested-tag-btn">Hardware</button>
-            <button class="suggested-tag-btn">Network</button>
-            <button class="suggested-tag-btn">SQL</button>
-            <button class="suggested-tag-btn">Report</button>
-            <button class="suggested-tag-btn">LIS</button>
+            <button class="suggested-tag-btn" type="button">HOMC</button>
+            <button class="suggested-tag-btn" type="button">PACS</button>
+            <button class="suggested-tag-btn" type="button">Hardware</button>
+            <button class="suggested-tag-btn" type="button">Network</button>
+            <button class="suggested-tag-btn" type="button">SQL</button>
+            <button class="suggested-tag-btn" type="button">Report</button>
+            <button class="suggested-tag-btn" type="button">LIS</button>
           </div>
         </div>
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn-secondary" id="btn-cancel-profile-settings">ยกเลิก</button>
-      <button class="btn-primary" id="btn-save-profile-settings" style="flex:1;">
-        บันทึกการตั้งค่า
-      </button>
+      <button class="btn-primary" id="btn-save-profile-settings" style="flex:1;">บันทึกการตั้งค่า</button>
     </div>
   </div>
 </div>
 
 <!-- Socket.io Client -->
 <script src="/socket.io/socket.io.js"></script>
-<script src="app.js?v=1.5"></script>
+<script src="app.js?v=4.0"></script>
 </body>
 </html>
