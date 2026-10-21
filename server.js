@@ -290,8 +290,8 @@ app.get('/api/staff/pm-search', requireAuth, async (req, res) => {
   }
 });
 
-// ----- Update User Specialties API -----
-app.put('/api/users/specialties', requireAuth, async (req, res) => {
+// ----- Update User Specialties API (Supports both PUT and POST for IIS compatibility) -----
+const updateSpecialtiesHandler = async (req, res) => {
   try {
     const userId = req.session.user.id;
     const { specialties } = req.body; // e.g. "database_reports,hardware_printers" or null
@@ -309,7 +309,9 @@ app.put('/api/users/specialties', requireAuth, async (req, res) => {
     console.error('Update specialties error:', err);
     res.status(500).json({ error: 'ไม่สามารถอัปเดตข้อมูลความเชี่ยวชาญได้' });
   }
-});
+};
+app.put('/api/users/specialties', requireAuth, updateSpecialtiesHandler);
+app.post('/api/users/specialties', requireAuth, updateSpecialtiesHandler);
 
 // ----- Conversations List API -----
 app.get('/api/conversations', requireAuth, async (req, res) => {
@@ -810,7 +812,7 @@ app.post('/api/report-requests/:id/claim', requireAuth, async (req, res) => {
       }
 
       // Send automated greeting into chat
-      const greeting = `📊 [รับงานขอรายงาน #REP-${String(reqId).padStart(4, '0')}] สวัสดีครับ/ค่ะ ${itUser.full_name} รับดำเนินการคิวรี่ข้อมูลเรื่อง "${reportReq.report_title}" แล้วครับ/ค่ะ หากต้องการส่งเงื่อนไขเพิ่มเติมแจ้งในแชทนี้ได้เลยครับ`;
+      const greeting = `[รับงานขอรายงาน #REP-${String(reqId).padStart(4, '0')}] สวัสดีครับ/ค่ะ ${itUser.full_name} รับดำเนินการคิวรี่ข้อมูลเรื่อง "${reportReq.report_title}" แล้วครับ/ค่ะ หากต้องการส่งเงื่อนไขเพิ่มเติมแจ้งในแชทนี้ได้เลยครับ`;
       await db.execute(
         'INSERT INTO messages (conversation_id, sender_id, message_text, created_at) VALUES (?, ?, ?, NOW())',
         [conversationId, itUser.id, greeting]
@@ -825,7 +827,7 @@ app.post('/api/report-requests/:id/claim', requireAuth, async (req, res) => {
 
     await db.execute(
       `UPDATE report_requests
-       SET owner_id = ?, owner_name = ?, status = ?, start_date = ?, percent_complete = ?, conversation_id = ?
+       SET owner_id = ?, owner_name = ?, status = ?, start_date = ?, accepted_at = COALESCE(accepted_at, NOW()), percent_complete = ?, conversation_id = ?
        WHERE id = ?`,
       [itUser.id, itUser.full_name, newStatus, startDate, newPct, conversationId || null, reqId]
     );
@@ -851,8 +853,8 @@ app.post('/api/report-requests/:id/claim', requireAuth, async (req, res) => {
   }
 });
 
-// ----- Update Report Request IT Fields / Close Job Log (IT/Admin) -----
-app.put('/api/report-requests/:id', requireAuth, async (req, res) => {
+// ----- Update Report Request IT Fields / Close Job Log (IT/Admin) (Supports PUT & POST for IIS) -----
+const updateReportRequestHandler = async (req, res) => {
   try {
     const reqId = parseInt(req.params.id);
     const itUser = req.session.user;
@@ -920,15 +922,21 @@ app.put('/api/report-requests/:id', requireAuth, async (req, res) => {
     const finalOwnerId = owner_id !== undefined ? (owner_id || null) : (current.owner_id || itUser.id);
     const finalOwnerName = owner_name !== undefined ? owner_name : (current.owner_name || itUser.full_name);
 
+    let finalAcceptedAt = current.accepted_at;
+    if (!finalAcceptedAt && (finalOwnerId || (finalStatus && finalStatus !== 'ยังไม่ดำเนินการ'))) {
+      finalAcceptedAt = `${todayStr} ${nowTimeStr}`;
+    }
+
     await db.execute(
       `UPDATE report_requests
-       SET status = ?, owner_id = ?, owner_name = ?, start_date = ?, completed_date = ?, percent_complete = ?, it_notes = ?
+       SET status = ?, owner_id = ?, owner_name = ?, start_date = ?, accepted_at = ?, completed_date = ?, percent_complete = ?, it_notes = ?
        WHERE id = ?`,
       [
         finalStatus,
         finalOwnerId,
         finalOwnerName,
         finalStartDate,
+        finalAcceptedAt,
         finalCompletedDate,
         finalPct,
         it_notes !== undefined ? it_notes : current.it_notes,
@@ -955,10 +963,12 @@ app.put('/api/report-requests/:id', requireAuth, async (req, res) => {
     console.error('Update report request error:', err);
     res.status(500).json({ error: 'ไม่สามารถอัปเดตสถานะรายงานได้' });
   }
-});
+};
+app.put('/api/report-requests/:id', requireAuth, updateReportRequestHandler);
+app.post('/api/report-requests/:id', requireAuth, updateReportRequestHandler);
 
-// ----- Requester Edit Report Request (Owner can edit while pending or in-progress) -----
-app.put('/api/report-requests/:id/requester-edit', requireAuth, async (req, res) => {
+// ----- Requester Edit Report Request (Owner can edit while pending or in-progress) (Supports PUT & POST for IIS) -----
+const requesterEditHandler = async (req, res) => {
   try {
     const reqId = parseInt(req.params.id, 10);
     if (!Number.isFinite(reqId) || reqId <= 0) {
@@ -1085,7 +1095,7 @@ app.put('/api/report-requests/:id/requester-edit', requireAuth, async (req, res)
       const changeSummaryText = changedFields.length > 0
         ? ` (แก้ไข: ${changedFields.join(', ')})`
         : '';
-      const notifyText = `📝 [แก้ไขใบคำขอ #REP-${String(reqId).padStart(4, '0')}] ผู้ขอ (${cleanName}) ได้แก้ไขข้อมูลใบคำขอเรื่อง "${cleanTitle}"${changeSummaryText} กรุณาตรวจสอบรายละเอียดล่าสุดในใบคำขอครับ/ค่ะ`;
+      const notifyText = `[แก้ไขใบคำขอ #REP-${String(reqId).padStart(4, '0')}] ผู้ขอ (${cleanName}) ได้แก้ไขข้อมูลใบคำขอเรื่อง "${cleanTitle}"${changeSummaryText} กรุณาตรวจสอบรายละเอียดล่าสุดในใบคำขอครับ/ค่ะ`;
 
       const [msgResult] = await db.execute(
         'INSERT INTO messages (conversation_id, sender_id, message_text, created_at) VALUES (?, ?, ?, NOW())',
@@ -1143,7 +1153,9 @@ app.put('/api/report-requests/:id/requester-edit', requireAuth, async (req, res)
     console.error('Requester edit report request error:', err);
     res.status(500).json({ error: 'ไม่สามารถบันทึกการแก้ไขคำขอข้อมูลได้' });
   }
-});
+};
+app.put('/api/report-requests/:id/requester-edit', requireAuth, requesterEditHandler);
+app.post('/api/report-requests/:id/requester-edit', requireAuth, requesterEditHandler);
 
 
 
@@ -1380,6 +1392,7 @@ async function onServerStartup() {
         owner_id           INT DEFAULT NULL,
         owner_name         VARCHAR(150) DEFAULT NULL,
         start_date         DATE DEFAULT NULL,
+        accepted_at        DATETIME DEFAULT NULL,
         completed_date     DATETIME DEFAULT NULL,
         percent_complete   INT DEFAULT 0,
         it_notes           TEXT DEFAULT NULL,
@@ -1388,6 +1401,11 @@ async function onServerStartup() {
         updated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
+    try {
+      await db.execute("ALTER TABLE report_requests ADD COLUMN accepted_at DATETIME DEFAULT NULL AFTER start_date");
+    } catch (e) {
+      // Column already exists
+    }
     await db.execute("ALTER TABLE report_requests MODIFY COLUMN completed_date DATETIME DEFAULT NULL");
     console.log('📊 report_requests table verified/ready.');
     await db.execute("UPDATE report_requests SET status = 'เสร็จ' WHERE status = 'เสร็จสิ้น'");

@@ -206,7 +206,7 @@
     socket = io();
 
     socket.on('connect', () => {
-      console.log('🟢 Socket connected');
+      console.log('[Socket] Connected');
     });
 
     // New message received from another user
@@ -264,7 +264,7 @@
       }
       renderReportLedger();
       if (currentUser && (currentUser.role === 'it' || currentUser.role === 'admin') && newReq.user_id !== currentUser.id) {
-        showToast(`📊 คำขอรายงานใหม่: "${newReq.report_title}" จาก ${newReq.requester_name}`);
+        showToast(`คำขอรายงานใหม่: "${newReq.report_title}" จาก ${newReq.requester_name}`, 'info');
       }
     });
 
@@ -290,7 +290,7 @@
           renderITBoard();
         }
         updateITBadge();
-        showToast(`📥 แจ้งปัญหาใหม่: "${post.title}" จาก ${post.user_name}`);
+        showToast(`แจ้งปัญหาใหม่: "${post.title}" จาก ${post.user_name}`, 'info');
       }
     });
 
@@ -306,7 +306,7 @@
     });
 
     socket.on('post_accepted_notify', (data) => {
-      showToast(`✅ เจ้าหน้าที่ ${data.accepted_by} รับเรื่อง "${data.post_title}" ของคุณแล้ว`);
+      showToast(`เจ้าหน้าที่ ${data.accepted_by} รับเรื่อง "${data.post_title}" ของคุณแล้ว`, 'success');
       // Reload conversations and IT posts
       loadConversations();
       if (activeTab === 'itboard') {
@@ -578,7 +578,7 @@
     if (pendingPosts.length > 0) {
       const header = document.createElement('div');
       header.className = 'itboard-section-header';
-      header.innerHTML = `<span class="itboard-section-icon pending">📥</span> งานรอรับ <span class="itboard-count">${pendingPosts.length}</span>`;
+      header.innerHTML = `<span class="itboard-section-icon pending"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg></span> งานรอรับ <span class="itboard-count">${pendingPosts.length}</span>`;
       itboardList.appendChild(header);
 
       pendingPosts.forEach(post => {
@@ -592,7 +592,7 @@
     if (activeJobs.length > 0) {
       const header2 = document.createElement('div');
       header2.className = 'itboard-section-header';
-      header2.innerHTML = `<span class="itboard-section-icon active">🔧</span> งานของฉัน <span class="itboard-count">${activeJobs.length}</span>`;
+      header2.innerHTML = `<span class="itboard-section-icon active"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span> งานของฉัน <span class="itboard-count">${activeJobs.length}</span>`;
       itboardList.appendChild(header2);
 
       activeJobs.forEach(post => {
@@ -619,7 +619,7 @@
 
     const header = document.createElement('div');
     header.className = 'itboard-section-header';
-    header.innerHTML = `<span class="itboard-section-icon">📋</span> รายการแจ้งปัญหาของฉัน`;
+    header.innerHTML = `<span class="itboard-section-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span> รายการแจ้งปัญหาของฉัน`;
     itboardList.appendChild(header);
 
     myPosts.forEach(post => {
@@ -665,15 +665,24 @@
       </button>`;
     } else if (type === 'my-job' && post.status === 'accepted') {
       actionsHTML = `<div class="card-actions-row">
-        <button class="btn-chat-post" data-conv-id="${post.conversation_id}">💬 แชท</button>
-        <button class="btn-resolve-post" data-post-id="${post.id}">✅ เสร็จสิ้น</button>
+        <button class="btn-chat-post" data-conv-id="${post.conversation_id}">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          แชท
+        </button>
+        <button class="btn-resolve-post" data-post-id="${post.id}">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          เสร็จสิ้น
+        </button>
       </div>`;
     } else if (type === 'mine' && post.status === 'accepted' && post.conversation_id) {
       actionsHTML = `<div class="card-accepted-info">
         <div class="avatar-mini"><div class="avatar-circle-mini" style="background:${getAvatarBg(post.accepted_by_color || '#4e73df')}">${post.accepted_by_initials || '??'}</div></div>
         <span>${post.accepted_by_name || 'IT'} กำลังดูแล</span>
       </div>
-      <button class="btn-chat-post" data-conv-id="${post.conversation_id}">💬 เปิดแชท</button>`;
+      <button class="btn-chat-post" data-conv-id="${post.conversation_id}">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        เปิดแชท
+      </button>`;
     }
 
     card.innerHTML = `
@@ -728,7 +737,7 @@
       const res = await fetch(`/api/it-posts/${postId}/accept`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
-        showToast('✅ รับงานเรียบร้อย! เปิดแชทกับผู้แจ้งปัญหาแล้ว');
+        showToast('รับงานเรียบร้อยแล้ว เปิดแชทกับผู้แจ้งปัญหาแล้ว', 'success');
         await loadITBoard();
         await loadConversations();
         // Auto-switch to chat
@@ -750,7 +759,7 @@
       const res = await fetch(`/api/it-posts/${postId}/resolve`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
-        showToast('✅ ปิดงานเรียบร้อย');
+        showToast('ปิดงานเรียบร้อยแล้ว', 'success');
         loadITBoard();
       } else {
         showToast(data.error || 'ไม่สามารถปิดงานได้');
@@ -829,10 +838,10 @@
 
       // Format last message preview
       let preview = conv.last_message_text || '';
-      if (conv.last_media_type === 'image') preview = '📷 รูปภาพ';
-      if (conv.last_media_type === 'video') preview = '🎬 วิดีโอ';
-      if (conv.last_media_type === 'file') preview = '📄 ไฟล์แนบ';
-      if (conv.last_media_type === 'audio') preview = '🎙️ ข้อความเสียง';
+      if (conv.last_media_type === 'image') preview = '[รูปภาพ]';
+      if (conv.last_media_type === 'video') preview = '[วิดีโอ]';
+      if (conv.last_media_type === 'file') preview = '[ไฟล์แนบ]';
+      if (conv.last_media_type === 'audio') preview = '[ข้อความเสียง]';
 
       const isSentByMe = conv.last_message_sender_id === currentUser.id;
       if (isSentByMe) {
@@ -1633,7 +1642,7 @@
       const data = await res.json();
 
       if (data.success) {
-        showToast('✅ ส่งแจ้งปัญหาเรียบร้อยแล้ว รอเจ้าหน้าที่ IT รับเรื่อง');
+        showToast('ส่งแจ้งปัญหาเรียบร้อยแล้ว เจ้าหน้าที่ IT จะรีบตรวจสอบและรับเรื่อง', 'success');
         closeCreatePostModal();
         loadITBoard();
       } else {
@@ -1943,17 +1952,29 @@
     return div.innerHTML;
   }
 
-  function showToast(message) {
+  function showToast(message, type = 'success') {
     const existing = document.querySelector('.toast-notification');
     if (existing) existing.remove();
 
+    // Clean any leading emoji characters
+    const cleanMsg = typeof message === 'string'
+      ? message.replace(/^[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}✓✔✕✖✗⚠️✅❌\s]+/u, '')
+      : message;
+
+    let iconSvg = '';
+    if (type === 'error') {
+      iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+    } else if (type === 'warning') {
+      iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+    } else if (type === 'info') {
+      iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
+    } else {
+      iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    }
+
     const toast = document.createElement('div');
-    toast.className = 'toast-notification';
-    toast.innerHTML = `
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
-      </svg>
-      <span>${message}</span>`;
+    toast.className = `toast-notification toast-${type}`;
+    toast.innerHTML = `${iconSvg}<span>${cleanMsg}</span>`;
     document.body.appendChild(toast);
 
     setTimeout(() => toast.remove(), 4000);
@@ -2327,7 +2348,7 @@
       item.className = 'spec-tag-item';
       item.innerHTML = `
         ${escapeHtml(tag)}
-        <button data-index="${idx}" title="ลบ">✕</button>
+        <button data-index="${idx}" title="ลบ"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       `;
       specialtyTagsList.appendChild(item);
     });
@@ -2390,14 +2411,14 @@
     try {
       const specialtiesStr = currentSpecialtiesTags.join(',');
       const res = await fetch('/api/users/specialties', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-HTTP-Method-Override': 'PUT' },
         body: JSON.stringify({ specialties: specialtiesStr || null })
       });
       const data = await res.json();
       if (data.success) {
         currentUser.specialties = data.specialties;
-        showToast('✅ บันทึกข้อมูลความเชี่ยวชาญเรียบร้อยแล้ว');
+        showToast('บันทึกข้อมูลความเชี่ยวชาญเรียบร้อยแล้ว', 'success');
         closeProfileSettingsModal();
         await loadStaff(); // Reload staff list to apply changes
       } else {
@@ -2772,7 +2793,7 @@
       }
       const data = await res.json();
       if (data.success && data.request) {
-        showToast(`✅ รับงาน #REP-${String(reqId).padStart(4, '0')} เรียบร้อยแล้ว`);
+        showToast(`รับงาน #REP-${String(reqId).padStart(4, '0')} เรียบร้อยแล้ว`, 'success');
         const idx = reportRequests.findIndex(r => r.id === data.request.id);
         if (idx !== -1) reportRequests[idx] = data.request;
         renderReportLedger();
@@ -2900,7 +2921,7 @@
 
       const cleanOwnerName = req.owner_name ? req.owner_name.replace(/\s*\(IT\)\s*/g, '') : '';
       const completedStampHtml = completedMeta
-        ? `<div class="rep-completed-stamp">✓ เสร็จ: ${completedMeta.date}${completedMeta.time ? ` • ${completedMeta.time}` : ''}</div>`
+        ? `<div class="rep-completed-stamp"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:-1px; margin-right:3px;"><polyline points="20 6 9 17 4 12"/></svg>เสร็จ: ${completedMeta.date}${completedMeta.time ? ` • ${completedMeta.time}` : ''}</div>`
         : '';
       const ownerHtml = cleanOwnerName
         ? `<div class="rep-owner-name">${escapeHtml(cleanOwnerName)}</div>
@@ -2926,7 +2947,7 @@
         </td>
         <td>
           <div class="rep-created-date">${createdMeta.date}</div>
-          ${createdMeta.time ? `<span class="rep-created-time">🕒 ${createdMeta.time}</span>` : ''}
+          ${createdMeta.time ? `<span class="rep-created-time"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:-1px; margin-right:3px;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${createdMeta.time}</span>` : ''}
         </td>
         <td>
           <div class="rep-due-date">${formatThaiDateShort(req.due_date)}</div>
@@ -3093,7 +3114,7 @@
 
       if (hasSearchQuery || activeReportFilter !== 'all') {
         emptyBox.innerHTML = `
-          <div class="report-empty-icon">🔍</div>
+          <div class="report-empty-icon"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
           <h4 class="report-empty-title">ไม่พบรายการคำขอที่ตรงกับเงื่อนไขที่กรอง</h4>
           <p class="report-empty-desc">ลองเปลี่ยนคำค้นหา หรือกดล้างตัวกรองเพื่อดูรายการคำขอข้อมูลทั้งหมด</p>
           <div class="report-empty-actions">
@@ -3120,7 +3141,7 @@
       }
 
       emptyBox.innerHTML = `
-        <div class="report-empty-icon">📋</div>
+        <div class="report-empty-icon"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
         <h4 class="report-empty-title">ยังไม่มีรายการคำขอข้อมูลรายงานในระบบ</h4>
         <p class="report-empty-desc">คุณสามารถยื่นคำขอข้อมูลหรือรายงานใหม่เพื่อให้เจ้าหน้าที่ศูนย์คอมพิวเตอร์ดำเนินการจัดทำได้ทันที</p>
         <div class="report-empty-actions">
@@ -3145,7 +3166,7 @@
         key: 'pending',
         items: pendingItems,
         cardClass: 'group-pending',
-        icon: '!',
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
         title: 'คำขอใหม่ — ยังไม่ดำเนินการ',
         subtitle: 'รายการคำขอข้อมูลใหม่ที่รอเจ้าหน้าที่ตรวจสอบและรับงาน (เรียงงานด่วนและกำหนดส่งใกล้สุดขึ้นก่อน)',
         collapsible: false,
@@ -3155,7 +3176,7 @@
         key: 'inprogress',
         items: progressItems,
         cardClass: 'group-inprogress',
-        icon: '⏳',
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
         title: 'กำลังดำเนินการ',
         subtitle: 'รายการที่เจ้าหน้าที่รับงานแล้วและอยู่ระหว่างจัดทำข้อมูลรายงาน',
         collapsible: false,
@@ -3165,7 +3186,7 @@
         key: 'completed',
         items: completedItems,
         cardClass: 'group-completed',
-        icon: '✓',
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
         title: 'เสร็จ',
         subtitle: 'รายการที่จัดทำข้อมูลเสร็จเรียบร้อยแล้ว (พับเก็บไว้ด้านล่างเพื่อไม่ให้ปะปนกับงานค้าง)',
         collapsible: activeReportFilter === 'all' && !hasSearchQuery,
@@ -3312,6 +3333,10 @@
     }
 
     // Populate IT Console (Editable for IT/Admin, Read-only for Staff)
+    const acceptedMeta = req.accepted_at
+      ? formatThaiDateTimeParts(req.accepted_at, req.updated_at)
+      : (req.start_date ? formatThaiDateTimeParts(req.start_date) : null);
+
     const completedMeta = req.completed_date
       ? formatThaiDateTimeParts(req.completed_date, req.updated_at)
       : null;
@@ -3328,12 +3353,21 @@
 
       itFieldStatus.value = normStatus;
       itFieldOwner.value = cleanOwnerName || currentUser.full_name;
-      itFieldStart.value = req.start_date ? toLocalDateVal(req.start_date) : toLocalDateVal(new Date());
+      itFieldStart.value = req.start_date ? toLocalDateVal(req.start_date) : (req.accepted_at ? toLocalDateVal(req.accepted_at) : toLocalDateVal(new Date()));
       itFieldCompleted.value = req.completed_date ? toLocalDateVal(req.completed_date) : '';
+      const startTimeHint = document.getElementById('it-start-time-hint');
+      if (startTimeHint) {
+        if (acceptedMeta && acceptedMeta.time) {
+          startTimeHint.textContent = `เวลาที่รับงาน: ${acceptedMeta.time}`;
+          startTimeHint.style.display = 'block';
+        } else {
+          startTimeHint.style.display = 'none';
+        }
+      }
       const compTimeHint = document.getElementById('it-completed-time-hint');
       if (compTimeHint) {
         if (completedMeta && completedMeta.time) {
-          compTimeHint.textContent = `✓ เวลาที่เสร็จ: ${completedMeta.time}`;
+          compTimeHint.textContent = `เวลาที่เสร็จ: ${completedMeta.time}`;
           compTimeHint.style.display = 'block';
         } else {
           compTimeHint.style.display = 'none';
@@ -3349,7 +3383,7 @@
 
       roStatus.textContent = normStatus;
       roOwner.textContent = cleanOwnerName || 'รอเจ้าหน้าที่ศูนย์คอมพิวเตอร์รับงาน';
-      roStartDate.textContent = formatThaiDateShort(req.start_date);
+      roStartDate.textContent = acceptedMeta ? acceptedMeta.full : '-';
       roCompletedDate.textContent = completedMeta ? completedMeta.full : '-';
       roPct.textContent = `${pctVal}%`;
       roNotes.textContent = req.it_notes || '-';
@@ -3664,7 +3698,7 @@
 
     const urgVal = reqUrgencySelect ? reqUrgencySelect.value : '';
     if (urgVal.includes('ด่วน') && !reqUrgentReasonInput.value.trim()) {
-      showToast('⚠️ กรุณาระบุเหตุผลในการขอด่วน');
+      showToast('กรุณาระบุเหตุผลในการขอด่วน', 'warning');
       reqUrgentReasonInput.focus();
       return;
     }
@@ -3700,11 +3734,11 @@
       const url = isEditing
         ? `/api/report-requests/${targetEditId}/requester-edit`
         : '/api/report-requests';
-      const method = isEditing ? 'PUT' : 'POST';
+      const method = 'POST';
 
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-HTTP-Method-Override': isEditing ? 'PUT' : 'POST' },
         body: JSON.stringify(payload)
       });
       const data = await res.json();
@@ -3712,8 +3746,9 @@
         if (isEditing) {
           showToast(
             data.notified_owner
-              ? '✅ บันทึกการแก้ไขคำขอ และส่งแชทแจ้งเตือนผู้รับผิดชอบเรียบร้อยแล้ว'
-              : '✅ บันทึกการแก้ไขคำขอข้อมูลเรียบร้อยแล้ว'
+              ? 'บันทึกการแก้ไขคำขอ และส่งแชทแจ้งเตือนผู้รับผิดชอบเรียบร้อยแล้ว'
+              : 'บันทึกการแก้ไขคำขอข้อมูลเรียบร้อยแล้ว',
+            'success'
           );
           const idx = reportRequests.findIndex(r => r.id === data.request.id);
           if (idx !== -1) reportRequests[idx] = data.request;
@@ -3721,7 +3756,7 @@
             await loadConversations();
           }
         } else {
-          showToast('✅ ส่งคำขอข้อมูลรายงานเรียบร้อยแล้ว');
+          showToast('ส่งคำขอข้อมูลรายงานเรียบร้อยแล้ว', 'success');
           const exists = reportRequests.some(r => r.id === data.request.id);
           if (!exists) reportRequests.unshift(data.request);
         }
@@ -3750,7 +3785,7 @@
       const res = await fetch(`/api/report-requests/${selectedReportId}/claim`, { method: 'POST' });
       const data = await res.json();
       if (data.success && data.request) {
-        showToast('✅ รับงานขอรายงานเรียบร้อย! ระบบสร้างข้อความแจ้งผู้ขอในแชทแล้ว');
+        showToast('รับงานขอรายงานเรียบร้อยแล้ว ระบบส่งข้อความแจ้งผู้ขอในแชทแล้ว', 'success');
         const idx = reportRequests.findIndex(r => r.id === data.request.id);
         if (idx !== -1) reportRequests[idx] = data.request;
         renderReportLedger();
@@ -3796,13 +3831,13 @@
 
     try {
       const res = await fetch(`/api/report-requests/${selectedReportId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-HTTP-Method-Override': 'PUT' },
         body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (data.success && data.request) {
-        showToast(forceComplete ? '✅ บันทึกสถานะ เสร็จ 100% เรียบร้อยแล้ว!' : '✅ บันทึกสถานะงานเรียบร้อยแล้ว');
+        showToast(forceComplete ? 'บันทึกสถานะ เสร็จ 100% เรียบร้อยแล้ว' : 'บันทึกสถานะงานเรียบร้อยแล้ว', 'success');
         const idx = reportRequests.findIndex(r => r.id === data.request.id);
         if (idx !== -1) reportRequests[idx] = data.request;
         renderReportLedger();
@@ -3847,7 +3882,7 @@
     const targetUserId = isIT ? req.user_id : req.owner_id;
 
     if (!targetUserId || targetUserId === currentUser.id) {
-      showToast('⏳ กรุณารอเจ้าหน้าที่ศูนย์คอมพิวเตอร์กดรับงานก่อน จึงจะสามารถแชทกับผู้รับผิดชอบได้ครับ');
+      showToast('กรุณารอเจ้าหน้าที่ศูนย์คอมพิวเตอร์กดรับงานก่อน จึงจะสามารถเปิดแชทคุยได้', 'info');
       return;
     }
 
