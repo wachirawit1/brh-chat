@@ -151,12 +151,13 @@
       const res = await fetch('/api/auth/me');
       const data = await res.json();
       if (!data.user) {
-        window.location.href = '/login.html';
+        window.location.replace('/login.html');
         return;
       }
       currentUser = data.user;
+      document.body.classList.add('app-ready');
     } catch {
-      window.location.href = '/login.html';
+      window.location.replace('/login.html');
       return;
     }
 

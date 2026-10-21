@@ -89,8 +89,19 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+// ----- Main SPA Page Auth Guard (Redirects before index.html is sent) -----
+const serveIndexPage = (req, res) => {
+  if (!req.session || !req.session.user) {
+    return res.redirect('/login.html');
+  }
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+};
+
+app.get('/', serveIndexPage);
+app.get('/index.html', serveIndexPage);
+
 // ----- Static Files -----
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
 // ----- API Routes -----
 app.use('/api/auth', authRoutes(db, mssqlPool));
@@ -1134,13 +1145,7 @@ app.put('/api/report-requests/:id/requester-edit', requireAuth, async (req, res)
   }
 });
 
-// ----- Catch-all: serve index.html for SPA -----
-app.get('/', (req, res) => {
-  if (!req.session || !req.session.user) {
-    return res.redirect('/login.html');
-  }
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+
 
 // ============================================
 // Socket.io — Real-time Events

@@ -5,7 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="ระบบขอรายงานโรงพยาบาลบุรีรัมย์ — ศูนย์คอมพิวเตอร์" />
   <title>ระบบขอรายงานโรงพยาบาลบุรีรัมย์</title>
-  <link rel="stylesheet" href="index.css?v=4.0" />
+  <style>
+    /* ป้องกันหน้าจอกระพริบเห็นเนื้อหาภายในก่อนล็อกอิน (Prevent FOUC) */
+    #app { display: none !important; }
+    body.app-ready #app { display: flex !important; }
+  </style>
+  <link rel="stylesheet" href="index.css?v=4.1" />
 </head>
 <body>
 
@@ -929,6 +934,6 @@
 
 <!-- Socket.io Client -->
 <script src="/socket.io/socket.io.js"></script>
-<script src="app.js?v=4.0"></script>
+<script src="app.js?v=4.1"></script>
 </body>
 </html>
