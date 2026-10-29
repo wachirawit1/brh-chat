@@ -2524,7 +2524,11 @@
   var reqTitleInput       = document.getElementById('req-title');
   var reqDeptInput        = document.getElementById('req-dept');
   var reqPhoneInput       = document.getElementById('req-phone');
+  var reqMeetingChk       = document.getElementById('req-purpose-meeting-chk');
+  var reqMeetingDate      = document.getElementById('req-meeting-date');
+  var reqMeetingDetailsBox= document.getElementById('req-meeting-details-box');
   var reqPurposeOtherChk  = document.getElementById('req-purpose-other-chk');
+  var reqOtherDetailsBox  = document.getElementById('req-other-details-box');
   var reqPurposeOtherText = document.getElementById('req-purpose-other-text');
   var reqFrequencySelect  = document.getElementById('req-frequency');
   var reqFrequencyOther   = document.getElementById('req-frequency-other');
@@ -2621,13 +2625,20 @@
     return { cls: 'pending', label: 'ยังไม่ดำเนินการ' };
   }
 
+  function normalizeAdYear(rawYear) {
+    let y = Number(rawYear);
+    if (!Number.isFinite(y)) return rawYear;
+    while (y >= 2400) y -= 543;
+    return y;
+  }
+
   function formatThaiDateShort(dateStr) {
     if (!dateStr) return '-';
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr;
     const day = String(d.getDate()).padStart(2, '0');
     const month = String(d.getMonth() + 1).padStart(2, '0');
-    const yearBE = d.getFullYear() + 543;
+    const yearBE = normalizeAdYear(d.getFullYear()) + 543;
     return `${day}/${month}/${yearBE}`;
   }
 
@@ -2637,7 +2648,7 @@
     if (isNaN(d.getTime())) return { date: String(dateStr), time: '', full: String(dateStr) };
     const day = String(d.getDate()).padStart(2, '0');
     const month = String(d.getMonth() + 1).padStart(2, '0');
-    const yearBE = d.getFullYear() + 543;
+    const yearBE = normalizeAdYear(d.getFullYear()) + 543;
     const datePart = `${day}/${month}/${yearBE}`;
 
     let hours = d.getHours();
@@ -3344,7 +3355,8 @@
       if (!val) return '';
       const d = new Date(val);
       if (isNaN(d.getTime())) return String(val).slice(0, 10);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const y = normalizeAdYear(d.getFullYear());
+      return `${y}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     };
 
     if (isIT) {
@@ -3393,15 +3405,14 @@
   let editingReportId = null;
 
   function syncReportFormConditionalFields() {
-    const meetingChk = document.getElementById('req-purpose-meeting-chk');
-    const showPurposeSub = Boolean((reqPurposeOtherChk && reqPurposeOtherChk.checked) || (meetingChk && meetingChk.checked));
-    if (reqPurposeOtherText) {
-      reqPurposeOtherText.style.display = showPurposeSub ? 'block' : 'none';
-      if (meetingChk && meetingChk.checked && !(reqPurposeOtherChk && reqPurposeOtherChk.checked)) {
-        reqPurposeOtherText.placeholder = 'ระบุวันที่ประชุม เช่น 28 ต.ค. 2569...';
-      } else {
-        reqPurposeOtherText.placeholder = 'ระบุวัตถุประสงค์เพิ่มเติม หรือวันที่ประชุม...';
-      }
+    const isMeetingChecked = Boolean(reqMeetingChk && reqMeetingChk.checked);
+    if (reqMeetingDetailsBox) {
+      reqMeetingDetailsBox.style.display = isMeetingChecked ? 'block' : 'none';
+    }
+
+    const isOtherChecked = Boolean(reqPurposeOtherChk && reqPurposeOtherChk.checked);
+    if (reqOtherDetailsBox) {
+      reqOtherDetailsBox.style.display = isOtherChecked ? 'block' : 'none';
     }
 
     if (reqFrequencySelect && reqFrequencyOther) {
@@ -3423,6 +3434,559 @@
           ? 'จำเป็นต้องระบุเหตุผลเมื่อขอข้อมูลแบบด่วน/ด่วนมาก'
           : 'กรอกเมื่อเลือก ด่วน หรือ ด่วนมาก';
       }
+    }
+  }
+
+  // ============================================
+  // THAI BUDDHIST CALENDAR DATE PICKER (พ.ศ.)
+  // ============================================
+  const THAI_MONTHS_FULL = [
+    'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+    'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+  ];
+  const THAI_MONTHS_SHORT = [
+    'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+    'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+  ];
+  const THAI_WEEKDAYS_FULL = [
+    'วันอาทิตย์', 'วันจันทร์', 'วันอังคาร', 'วันพุธ', 'วันพฤหัสบดี', 'วันศุกร์', 'วันเสาร์'
+  ];
+  const THAI_WEEKDAYS_SHORT = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
+
+  function parseAnyDateToIso(rawVal) {
+    if (!rawVal) return '';
+    const s = String(rawVal).trim();
+    if (!s) return '';
+
+    // 1. ISO YYYY-MM-DD (or YYYY-MM-DDTHH:mm...)
+    const isoMatch = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (isoMatch) {
+      const y = normalizeAdYear(parseInt(isoMatch[1], 10));
+      const m = parseInt(isoMatch[2], 10);
+      const d = parseInt(isoMatch[3], 10);
+      if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        const dt = new Date(y, m - 1, d);
+        if (dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d) {
+          return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        }
+      }
+    }
+
+    // 2. Thai DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY (supports both พ.ศ. 2569, 69, or ค.ศ. 2026)
+    const dmyMatch = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
+    if (dmyMatch) {
+      const d = parseInt(dmyMatch[1], 10);
+      const m = parseInt(dmyMatch[2], 10);
+      let y = parseInt(dmyMatch[3], 10);
+      if (y < 100) {
+        y = y >= 40 ? (2500 + y - 543) : (2000 + y);
+      } else {
+        y = normalizeAdYear(y);
+      }
+      if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        const dt = new Date(y, m - 1, d);
+        if (dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d) {
+          return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        }
+      }
+    }
+
+    // 3. Compact 8 digits DDMMYYYY (e.g. 30102569) or 6 digits DDMMYY (e.g. 301069)
+    const digitsOnly = s.replace(/\D/g, '');
+    if (digitsOnly.length === 8 || digitsOnly.length === 6) {
+      const d = parseInt(digitsOnly.slice(0, 2), 10);
+      const m = parseInt(digitsOnly.slice(2, 4), 10);
+      let y = parseInt(digitsOnly.slice(4), 10);
+      if (y < 100) {
+        y = y >= 40 ? (2500 + y - 543) : (2000 + y);
+      } else {
+        y = normalizeAdYear(y);
+      }
+      if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        const dt = new Date(y, m - 1, d);
+        if (dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d) {
+          return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        }
+      }
+    }
+
+    return '';
+  }
+
+  function isoToThaiDisplay(isoStr) {
+    const cleanIso = parseAnyDateToIso(isoStr);
+    if (!cleanIso) return '';
+    const [yStr, mStr, dStr] = cleanIso.split('-');
+    const yearBE = parseInt(yStr, 10) + 543;
+    return `${dStr}/${mStr}/${yearBE}`;
+  }
+
+  function isoToThaiFullLabel(isoStr, isOptional = false) {
+    const cleanIso = parseAnyDateToIso(isoStr);
+    if (!cleanIso) {
+      return isOptional ? 'ยังไม่ได้ระบุวันที่ (กดปุ่มปฏิทินเพื่อเลือก)' : 'กดปุ่มปฏิทินเพื่อเลือกวันที่ หรือพิมพ์ วว/ดด/พ.ศ.';
+    }
+    const [yStr, mStr, dStr] = cleanIso.split('-');
+    const y = parseInt(yStr, 10);
+    const m = parseInt(mStr, 10);
+    const d = parseInt(dStr, 10);
+    const dt = new Date(y, m - 1, d);
+    const weekday = THAI_WEEKDAYS_FULL[dt.getDay()];
+    const monthName = THAI_MONTHS_FULL[m - 1];
+    const yearBE = y + 543;
+    return `${weekday}ที่ ${d} ${monthName} พ.ศ. ${yearBE}`;
+  }
+
+  function setupThaiDatePickers() {
+    let activePopover = null;
+    let activeTargetConfig = null;
+    let viewYearAD = new Date().getFullYear();
+    let viewMonthIdx = new Date().getMonth();
+
+    function closeCalendarPopover() {
+      if (activePopover) {
+        activePopover.remove();
+        activePopover = null;
+      }
+      if (activeTargetConfig && activeTargetConfig.controlEl) {
+        activeTargetConfig.controlEl.classList.remove('is-open');
+      }
+      activeTargetConfig = null;
+    }
+
+    function positionPopover(anchorEl) {
+      if (!activePopover || !anchorEl) return;
+      const rect = anchorEl.getBoundingClientRect();
+      const popWidth = 312;
+      const popHeight = activePopover.offsetHeight || 340;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+
+      let left = rect.left;
+      if (left + popWidth > vw - 12) {
+        left = Math.max(12, vw - popWidth - 12);
+      }
+
+      let top = rect.bottom + 6;
+      if (top + popHeight > vh - 12 && rect.top - popHeight - 6 >= 12) {
+        top = rect.top - popHeight - 6;
+      }
+
+      activePopover.style.left = `${Math.round(left)}px`;
+      activePopover.style.top = `${Math.round(top)}px`;
+    }
+
+    function renderPopoverContents() {
+      if (!activePopover || !activeTargetConfig) return;
+
+      const selectedIso = activeTargetConfig.getValue();
+      const today = new Date();
+      const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+      // Build presets HTML
+      let presetsHtml = '';
+      if (activeTargetConfig.presetMode === 'due') {
+        presetsHtml = `
+          <div class="thai-cal-presets">
+            <button type="button" class="thai-cal-preset-btn" data-add-days="0">วันนี้</button>
+            <button type="button" class="thai-cal-preset-btn" data-add-days="1">พรุ่งนี้</button>
+            <button type="button" class="thai-cal-preset-btn urgent-3" data-add-days="3" data-urgency="ด่วนมาก ภายใน 3 วัน">+3 วัน (ด่วนมาก)</button>
+            <button type="button" class="thai-cal-preset-btn urgent-5" data-add-days="5" data-urgency="ด่วน ภายใน 5 วัน">+5 วัน (ด่วน)</button>
+            <button type="button" class="thai-cal-preset-btn" data-add-days="10" data-urgency="ปกติ ภายใน 10 วัน">+10 วัน (ปกติ)</button>
+          </div>
+        `;
+      } else if (activeTargetConfig.presetMode === 'it') {
+        presetsHtml = `
+          <div class="thai-cal-presets">
+            <button type="button" class="thai-cal-preset-btn" data-add-days="0">วันนี้</button>
+            <button type="button" class="thai-cal-preset-btn" data-add-days="-1">เมื่อวาน</button>
+            ${activeTargetConfig.isOptional ? '<button type="button" class="thai-cal-preset-btn" data-clear-date="1">ล้างวันที่</button>' : ''}
+          </div>
+        `;
+      } else if (activeTargetConfig.presetMode === 'meeting') {
+        presetsHtml = `
+          <div class="thai-cal-presets">
+            <button type="button" class="thai-cal-preset-btn" data-add-days="0">วันนี้</button>
+            <button type="button" class="thai-cal-preset-btn" data-add-days="1">พรุ่งนี้</button>
+            <button type="button" class="thai-cal-preset-btn" data-add-days="3">อีก 3 วัน</button>
+            <button type="button" class="thai-cal-preset-btn" data-add-days="7">สัปดาห์หน้า</button>
+          </div>
+        `;
+      }
+
+      // Month options
+      const monthOptionsHtml = THAI_MONTHS_FULL.map((mName, idx) =>
+        `<option value="${idx}" ${idx === viewMonthIdx ? 'selected' : ''}>${mName}</option>`
+      ).join('');
+
+      // Year options (Buddhist Era)
+      const currentYearAD = today.getFullYear();
+      const minYearAD = Math.min(currentYearAD - 4, viewYearAD - 2);
+      const maxYearAD = Math.max(currentYearAD + 6, viewYearAD + 2);
+      let yearOptionsHtml = '';
+      for (let y = minYearAD; y <= maxYearAD; y++) {
+        yearOptionsHtml += `<option value="${y}" ${y === viewYearAD ? 'selected' : ''}>พ.ศ. ${y + 543}</option>`;
+      }
+
+      // Weekdays
+      const weekdaysHtml = THAI_WEEKDAYS_SHORT.map((w, idx) =>
+        `<div class="thai-cal-weekday ${idx === 0 ? 'sun' : ''}">${w}</div>`
+      ).join('');
+
+      // Days grid (42 cells)
+      const firstDayOfMonth = new Date(viewYearAD, viewMonthIdx, 1);
+      const startOffset = firstDayOfMonth.getDay(); // 0 = Sunday
+      const gridStartDate = new Date(viewYearAD, viewMonthIdx, 1 - startOffset);
+
+      let daysHtml = '';
+      for (let i = 0; i < 42; i++) {
+        const cellDate = new Date(gridStartDate.getFullYear(), gridStartDate.getMonth(), gridStartDate.getDate() + i);
+        const cy = cellDate.getFullYear();
+        const cm = cellDate.getMonth();
+        const cd = cellDate.getDate();
+        const cellIso = `${cy}-${String(cm + 1).padStart(2, '0')}-${String(cd).padStart(2, '0')}`;
+
+        const isOutside = cm !== viewMonthIdx;
+        const isToday = cellIso === todayIso;
+        const isSelected = cellIso === selectedIso;
+        const isSunday = cellDate.getDay() === 0;
+
+        const cls = [
+          'thai-cal-day',
+          isOutside ? 'is-outside' : '',
+          isToday ? 'is-today' : '',
+          isSelected ? 'is-selected' : '',
+          isSunday ? 'is-sunday' : ''
+        ].filter(Boolean).join(' ');
+
+        daysHtml += `<button type="button" class="${cls}" data-iso="${cellIso}" title="${cd} ${THAI_MONTHS_FULL[cm]} ${cy + 543}">${cd}</button>`;
+      }
+
+      const footerStatus = selectedIso
+        ? isoToThaiFullLabel(selectedIso)
+        : 'คลิกเลือกวันที่ในตารางปฏิทิน';
+
+      activePopover.innerHTML = `
+        ${presetsHtml}
+        <div class="thai-cal-header">
+          <button type="button" class="thai-cal-nav-btn" data-cal-nav="-1" title="เดือนก่อนหน้า">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <div class="thai-cal-selects">
+            <select class="thai-cal-select month-select" aria-label="เลือกเดือน">${monthOptionsHtml}</select>
+            <select class="thai-cal-select year-select" aria-label="เลือกปี พ.ศ.">${yearOptionsHtml}</select>
+          </div>
+          <button type="button" class="thai-cal-nav-btn" data-cal-nav="1" title="เดือนถัดไป">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+        <div class="thai-cal-weekdays">${weekdaysHtml}</div>
+        <div class="thai-cal-grid">${daysHtml}</div>
+        <div class="thai-cal-footer">
+          <span class="thai-cal-footer-status">${footerStatus}</span>
+          <button type="button" class="thai-cal-close-btn" data-cal-close="1">ปิด</button>
+        </div>
+      `;
+
+      // Bind internal popover events
+      activePopover.querySelectorAll('[data-cal-nav]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const delta = parseInt(btn.dataset.calNav, 10);
+          const d = new Date(viewYearAD, viewMonthIdx + delta, 1);
+          viewYearAD = d.getFullYear();
+          viewMonthIdx = d.getMonth();
+          renderPopoverContents();
+        });
+      });
+
+      const monthSel = activePopover.querySelector('.month-select');
+      if (monthSel) {
+        monthSel.addEventListener('change', (e) => {
+          e.stopPropagation();
+          viewMonthIdx = parseInt(monthSel.value, 10);
+          renderPopoverContents();
+        });
+      }
+
+      const yearSel = activePopover.querySelector('.year-select');
+      if (yearSel) {
+        yearSel.addEventListener('change', (e) => {
+          e.stopPropagation();
+          viewYearAD = parseInt(yearSel.value, 10);
+          renderPopoverContents();
+        });
+      }
+
+      activePopover.querySelectorAll('.thai-cal-day').forEach(dayBtn => {
+        dayBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const pickedIso = dayBtn.dataset.iso;
+          activeTargetConfig.onSelectIso(pickedIso);
+          closeCalendarPopover();
+        });
+      });
+
+      activePopover.querySelectorAll('[data-add-days]').forEach(presetBtn => {
+        presetBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const addDays = parseInt(presetBtn.dataset.addDays, 10);
+          const d = new Date();
+          d.setDate(d.getDate() + addDays);
+          const pickedIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          if (presetBtn.dataset.urgency && reqUrgencySelect) {
+            reqUrgencySelect.value = presetBtn.dataset.urgency;
+            syncReportFormConditionalFields();
+          }
+          activeTargetConfig.onSelectIso(pickedIso);
+          closeCalendarPopover();
+        });
+      });
+
+      const clearBtn = activePopover.querySelector('[data-clear-date]');
+      if (clearBtn) {
+        clearBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          activeTargetConfig.onSelectIso('');
+          closeCalendarPopover();
+        });
+      }
+
+      const closeBtn = activePopover.querySelector('[data-cal-close]');
+      if (closeBtn) {
+        closeBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          closeCalendarPopover();
+        });
+      }
+    }
+
+    function openCalendarPopover(config) {
+      if (activePopover && activeTargetConfig && activeTargetConfig.anchorEl === config.anchorEl) {
+        closeCalendarPopover();
+        return;
+      }
+      closeCalendarPopover();
+      activeTargetConfig = config;
+      if (config.controlEl) {
+        config.controlEl.classList.add('is-open');
+      }
+
+      const currentIso = parseAnyDateToIso(config.getValue());
+      if (currentIso) {
+        const [y, m] = currentIso.split('-').map(Number);
+        viewYearAD = y;
+        viewMonthIdx = m - 1;
+      } else {
+        const now = new Date();
+        viewYearAD = now.getFullYear();
+        viewMonthIdx = now.getMonth();
+      }
+
+      activePopover = document.createElement('div');
+      activePopover.className = 'thai-calendar-popover';
+      document.body.appendChild(activePopover);
+
+      renderPopoverContents();
+      positionPopover(config.anchorEl);
+    }
+
+    function upgradeDateInput(inputEl, options = {}) {
+      if (!inputEl || inputEl.dataset.thaiUpgraded === '1') return;
+      inputEl.dataset.thaiUpgraded = '1';
+
+      let internalIsoValue = parseAnyDateToIso(inputEl.getAttribute('value') || '');
+      inputEl.type = 'hidden';
+
+      const wrapEl = document.createElement('div');
+      wrapEl.className = 'thai-datepicker-wrap';
+
+      const controlEl = document.createElement('div');
+      controlEl.className = 'thai-datepicker-control';
+
+      const displayInput = document.createElement('input');
+      displayInput.type = 'text';
+      displayInput.className = 'thai-datepicker-display';
+      displayInput.placeholder = options.placeholder || 'วว/ดด/ปปปป (พ.ศ.) เช่น 30/10/2569';
+      displayInput.autocomplete = 'off';
+
+      const triggerBtn = document.createElement('button');
+      triggerBtn.type = 'button';
+      triggerBtn.className = 'thai-datepicker-btn';
+      triggerBtn.title = 'คลิกเพื่อเปิดปฏิทินไทย (พ.ศ.)';
+      triggerBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="16" y1="2" x2="16" y2="6"></line>
+          <line x1="8" y1="2" x2="8" y2="6"></line>
+          <line x1="3" y1="10" x2="21" y2="10"></line>
+          <rect x="8" y="14" width="3" height="3" rx="0.5"></rect>
+        </svg>
+        <span>ปฏิทิน</span>
+      `;
+
+      const sublabelEl = document.createElement('div');
+      sublabelEl.className = 'thai-datepicker-sublabel is-empty';
+
+      controlEl.appendChild(displayInput);
+      controlEl.appendChild(triggerBtn);
+      wrapEl.appendChild(controlEl);
+      wrapEl.appendChild(sublabelEl);
+
+      inputEl.parentNode.insertBefore(wrapEl, inputEl.nextSibling);
+
+      function syncUiFromIso(isoVal) {
+        internalIsoValue = parseAnyDateToIso(isoVal);
+        inputEl.setAttribute('value', internalIsoValue);
+        displayInput.value = isoToThaiDisplay(internalIsoValue);
+        sublabelEl.textContent = isoToThaiFullLabel(internalIsoValue, options.isOptional);
+        sublabelEl.classList.toggle('is-empty', !internalIsoValue);
+      }
+
+      // Override .value getter/setter on inputEl so existing app.js code works seamlessly
+      Object.defineProperty(inputEl, 'value', {
+        get() {
+          return internalIsoValue;
+        },
+        set(newVal) {
+          syncUiFromIso(newVal);
+        },
+        configurable: true
+      });
+
+      syncUiFromIso(internalIsoValue);
+
+      const pickerConfig = {
+        anchorEl: controlEl,
+        controlEl,
+        presetMode: options.presetMode || 'default',
+        isOptional: Boolean(options.isOptional),
+        getValue: () => internalIsoValue,
+        onSelectIso: (pickedIso) => {
+          syncUiFromIso(pickedIso);
+          inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      };
+
+      triggerBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openCalendarPopover(pickerConfig);
+      });
+
+      displayInput.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!activePopover) {
+          openCalendarPopover(pickerConfig);
+        }
+      });
+
+      // Allow typing Thai date DD/MM/YYYY (พ.ศ.) directly
+      displayInput.addEventListener('input', (e) => {
+        const raw = displayInput.value;
+        // Auto-insert slashes when user types numbers sequentially
+        if (e.inputType && e.inputType.startsWith('insert')) {
+          const digits = raw.replace(/\D/g, '');
+          if (/^\d+$/.test(raw.replace(/\//g, ''))) {
+            if (digits.length === 2 && !raw.includes('/')) {
+              displayInput.value = `${digits}/`;
+            } else if (digits.length === 4 && (raw.match(/\//g) || []).length === 1) {
+              displayInput.value = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/`;
+            }
+          }
+        }
+        const parsed = parseAnyDateToIso(displayInput.value);
+        if (parsed) {
+          internalIsoValue = parsed;
+          inputEl.setAttribute('value', internalIsoValue);
+          sublabelEl.textContent = isoToThaiFullLabel(internalIsoValue, options.isOptional);
+          sublabelEl.classList.remove('is-empty');
+          if (activePopover && activeTargetConfig === pickerConfig) {
+            const [y, m] = parsed.split('-').map(Number);
+            viewYearAD = y;
+            viewMonthIdx = m - 1;
+            renderPopoverContents();
+          }
+        } else if (!displayInput.value.trim()) {
+          internalIsoValue = '';
+          inputEl.setAttribute('value', '');
+          sublabelEl.textContent = isoToThaiFullLabel('', options.isOptional);
+          sublabelEl.classList.add('is-empty');
+        }
+      });
+
+      displayInput.addEventListener('blur', () => {
+        const txt = displayInput.value.trim();
+        if (!txt) {
+          syncUiFromIso('');
+          return;
+        }
+        const parsed = parseAnyDateToIso(txt);
+        if (parsed) {
+          syncUiFromIso(parsed);
+        } else {
+          // Restore previous valid date if user typed incomplete garbage
+          syncUiFromIso(internalIsoValue);
+        }
+      });
+
+      displayInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          const parsed = parseAnyDateToIso(displayInput.value.trim());
+          if (parsed) {
+            e.preventDefault();
+            syncUiFromIso(parsed);
+            closeCalendarPopover();
+          }
+        } else if (e.key === 'Escape' && activePopover) {
+          e.stopPropagation();
+          closeCalendarPopover();
+        }
+      });
+    }
+
+    upgradeDateInput(reqDueDateInput, {
+      presetMode: 'due',
+      isOptional: false,
+      placeholder: 'วว/ดด/ปปปป (พ.ศ.) หรือกดปุ่มปฏิทิน'
+    });
+    upgradeDateInput(reqMeetingDate, {
+      presetMode: 'meeting',
+      isOptional: true,
+      placeholder: 'วว/ดด/ปปปป (พ.ศ.) หรือกดปุ่มปฏิทิน'
+    });
+    upgradeDateInput(itFieldStart, {
+      presetMode: 'it',
+      isOptional: false,
+      placeholder: 'วว/ดด/ปปปป (พ.ศ.)'
+    });
+    upgradeDateInput(itFieldCompleted, {
+      presetMode: 'it',
+      isOptional: true,
+      placeholder: 'วว/ดด/ปปปป (พ.ศ.)'
+    });
+
+    // Close calendar popover when clicking outside or scrolling modal
+    document.addEventListener('click', (e) => {
+      if (!activePopover) return;
+      if (activePopover.contains(e.target)) return;
+      if (activeTargetConfig && activeTargetConfig.anchorEl && activeTargetConfig.anchorEl.contains(e.target)) return;
+      closeCalendarPopover();
+    });
+
+    window.addEventListener('resize', () => {
+      if (activePopover && activeTargetConfig) {
+        positionPopover(activeTargetConfig.anchorEl);
+      }
+    });
+
+    const modalBody = document.querySelector('#modal-report-request .modal-body');
+    if (modalBody) {
+      modalBody.addEventListener('scroll', () => {
+        if (activePopover && activeTargetConfig) {
+          positionPopover(activeTargetConfig.anchorEl);
+        }
+      }, { passive: true });
     }
   }
 
@@ -3617,6 +4181,9 @@
     reqTitleInput.value = '';
     reqDetailsInput.value = '';
     reqUrgentReasonInput.value = '';
+    if (reqMeetingChk) reqMeetingChk.checked = false;
+    if (reqMeetingDate) reqMeetingDate.value = '';
+    if (reqPurposeOtherChk) reqPurposeOtherChk.checked = false;
     reqPurposeOtherText.value = '';
     reqFrequencyOther.value = '';
     if (reqChannelInput) reqChannelInput.value = '';
@@ -3628,7 +4195,7 @@
     // Default due date = +10 days
     const defaultDue = new Date();
     defaultDue.setDate(defaultDue.getDate() + 10);
-    reqDueDateInput.value = defaultDue.toISOString().slice(0, 10);
+    reqDueDateInput.value = `${defaultDue.getFullYear()}-${String(defaultDue.getMonth() + 1).padStart(2, '0')}-${String(defaultDue.getDate()).padStart(2, '0')}`;
 
     syncReportFormConditionalFields();
 
@@ -3674,6 +4241,24 @@
       chk.checked = rawPurposes.includes(chk.value);
     });
 
+    const meetingItem = rawPurposes.find(p => typeof p === 'string' && (p.startsWith('ประชุม') || p.includes('ประชุม')));
+    if (meetingItem && reqMeetingChk) {
+      reqMeetingChk.checked = true;
+      const dMatch = meetingItem.match(/(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})/);
+      if (dMatch && reqMeetingDate) {
+        reqMeetingDate.value = parseAnyDateToIso(dMatch[1]);
+      } else if (reqMeetingDate) {
+        reqMeetingDate.value = '';
+      }
+    } else if (reqMeetingChk) {
+      reqMeetingChk.checked = false;
+      if (reqMeetingDate) reqMeetingDate.value = '';
+    }
+
+    if (reqPurposeOtherChk) {
+      reqPurposeOtherChk.checked = Boolean(req.purpose_other && req.purpose_other.trim());
+    }
+
     if (reqFrequencySelect) reqFrequencySelect.value = req.frequency || 'ใช้ครั้งเดียว';
     if (reqUrgencySelect) reqUrgencySelect.value = req.urgency || 'ปกติ ภายใน 10 วัน';
     if (reqDueDateInput) {
@@ -3712,6 +4297,17 @@
     if (submitLabel) submitLabel.textContent = isEditing ? 'กำลังบันทึกการแก้ไข...' : 'กำลังส่งคำขอ...';
 
     const checkedPurposes = Array.from(document.querySelectorAll('input[name="req_purpose"]:checked')).map(el => el.value);
+    if (reqMeetingChk && reqMeetingChk.checked) {
+      let meetingLabel = 'ประชุม';
+      const mDateIso = reqMeetingDate ? reqMeetingDate.value : '';
+      if (mDateIso) {
+        const [yStr, mStr, dStr] = mDateIso.split('-');
+        const yBE = parseInt(yStr, 10) + 543;
+        const dThai = `${dStr}/${mStr}/${yBE}`;
+        meetingLabel = `ประชุมวันที่ ${dThai}`;
+      }
+      checkedPurposes.push(meetingLabel);
+    }
 
     const payload = {
       requester_name: reqNameInput.value.trim(),
@@ -3980,17 +4576,19 @@
     }
 
     // Progressive Disclosure & Channel Chips inside Report Request Form
-    const meetingChk = document.getElementById('req-purpose-meeting-chk');
+    if (reqMeetingChk) {
+      reqMeetingChk.addEventListener('change', () => {
+        syncReportFormConditionalFields();
+        if (reqMeetingChk.checked && reqMeetingDate) {
+          const disp = reqMeetingDate.parentNode ? reqMeetingDate.parentNode.querySelector('.thai-datepicker-display') : null;
+          if (disp) disp.focus();
+        }
+      });
+    }
     if (reqPurposeOtherChk) {
       reqPurposeOtherChk.addEventListener('change', () => {
         syncReportFormConditionalFields();
         if (reqPurposeOtherChk.checked && reqPurposeOtherText) reqPurposeOtherText.focus();
-      });
-    }
-    if (meetingChk) {
-      meetingChk.addEventListener('change', () => {
-        syncReportFormConditionalFields();
-        if (meetingChk.checked && reqPurposeOtherText) reqPurposeOtherText.focus();
       });
     }
     if (reqFrequencySelect) {
@@ -4054,6 +4652,7 @@
     }
 
     setupPmRequesterAutocomplete();
+    setupThaiDatePickers();
 
     if (reqUrgencySelect && reqDueDateInput) {
       reqUrgencySelect.addEventListener('change', () => {
@@ -4063,7 +4662,7 @@
         else if (val.includes('5 วัน') || val.includes('ด่วน')) addDays = 5;
         const d = new Date();
         d.setDate(d.getDate() + addDays);
-        reqDueDateInput.value = d.toISOString().slice(0, 10);
+        reqDueDateInput.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         syncReportFormConditionalFields();
         if (addDays < 10 && reqUrgentReasonInput) {
           reqUrgentReasonInput.focus();

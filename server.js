@@ -688,6 +688,37 @@ app.get('/api/report-requests', requireAuth, async (req, res) => {
   }
 });
 
+// Helper: Normalize incoming date strings (converts Buddhist Era years >= 2400 or DD/MM/YYYY to standard ISO YYYY-MM-DD)
+function normalizeDateValue(val) {
+  if (!val) return null;
+  const s = String(val).trim();
+  if (!s) return null;
+
+  // Match YYYY-MM-DD (with optional time HH:mm:ss)
+  const isoMatch = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:\s+(\d{2}:\d{2}(?::\d{2})?))?/);
+  if (isoMatch) {
+    let y = parseInt(isoMatch[1], 10);
+    const m = String(isoMatch[2]).padStart(2, '0');
+    const d = String(isoMatch[3]).padStart(2, '0');
+    const timePart = isoMatch[4] ? ` ${isoMatch[4]}` : '';
+    while (y >= 2400) y -= 543;
+    return `${y}-${m}-${d}${timePart}`;
+  }
+
+  // Match DD/MM/YYYY or DD-MM-YYYY
+  const dmyMatch = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  if (dmyMatch) {
+    const d = String(dmyMatch[1]).padStart(2, '0');
+    const m = String(dmyMatch[2]).padStart(2, '0');
+    let y = parseInt(dmyMatch[3], 10);
+    if (y < 100) y = (y >= 40 ? 2500 + y : 2000 + y);
+    while (y >= 2400) y -= 543;
+    return `${y}-${m}-${d}`;
+  }
+
+  return s;
+}
+
 // ----- Create Report Request (Staff or IT submits a request) -----
 app.post('/api/report-requests', requireAuth, async (req, res) => {
   try {
@@ -739,7 +770,7 @@ app.post('/api/report-requests', requireAuth, async (req, res) => {
         frequency_other ? String(frequency_other).trim().slice(0, 255) : null,
         String(details).trim().slice(0, 5000),
         delivery_channel ? String(delivery_channel).trim().slice(0, 255) : null,
-        due_date || null,
+        normalizeDateValue(due_date),
         urgencyStr,
         urgent_reason ? String(urgent_reason).trim().slice(0, 500) : null
       ]
@@ -885,8 +916,8 @@ const updateReportRequestHandler = async (req, res) => {
     finalPct = Math.max(0, Math.min(100, finalPct));
 
     let finalStatus = status || current.status;
-    let finalCompletedDate = completed_date !== undefined ? (completed_date || null) : current.completed_date;
-    let finalStartDate = start_date !== undefined ? (start_date || null) : current.start_date;
+    let finalCompletedDate = completed_date !== undefined ? normalizeDateValue(completed_date) : current.completed_date;
+    let finalStartDate = start_date !== undefined ? normalizeDateValue(start_date) : current.start_date;
 
     const now = new Date();
     const pad2 = (n) => String(n).padStart(2, '0');
@@ -1030,7 +1061,7 @@ const requesterEditHandler = async (req, res) => {
     const cleanFreqOther = frequency_other ? String(frequency_other).trim().slice(0, 255) : null;
     const cleanDetails = String(details).trim().slice(0, 5000);
     const cleanChannel = delivery_channel ? String(delivery_channel).trim().slice(0, 255) : null;
-    const cleanDueDate = due_date || null;
+    const cleanDueDate = normalizeDateValue(due_date);
     const cleanUrgentReason = urgent_reason ? String(urgent_reason).trim().slice(0, 500) : null;
 
     // Detect changed fields for automatic chat notification
@@ -1409,6 +1440,10 @@ async function onServerStartup() {
     await db.execute("ALTER TABLE report_requests MODIFY COLUMN completed_date DATETIME DEFAULT NULL");
     console.log('📊 report_requests table verified/ready.');
     await db.execute("UPDATE report_requests SET status = 'เสร็จ' WHERE status = 'เสร็จสิ้น'");
+    // Auto-heal dates where user typed Buddhist Era year (e.g. 2569) into native browser date input
+    await db.execute("UPDATE report_requests SET due_date = DATE_SUB(due_date, INTERVAL 543 YEAR) WHERE due_date IS NOT NULL AND YEAR(due_date) >= 2400");
+    await db.execute("UPDATE report_requests SET start_date = DATE_SUB(start_date, INTERVAL 543 YEAR) WHERE start_date IS NOT NULL AND YEAR(start_date) >= 2400");
+    await db.execute("UPDATE report_requests SET completed_date = DATE_SUB(completed_date, INTERVAL 543 YEAR) WHERE completed_date IS NOT NULL AND YEAR(completed_date) >= 2400");
     try {
       await db.execute("ALTER TABLE users MODIFY COLUMN department VARCHAR(150) NOT NULL");
       await db.execute("ALTER TABLE users ADD COLUMN position VARCHAR(150) NULL AFTER department");
