@@ -2776,7 +2776,18 @@
     return { rank: 0, cls: '', label: 'ปกติ ภายใน 10 วัน' };
   }
 
-  function sortReportGroupByPriority(items) {
+  function sortReportGroupItems(items, secKey = 'pending') {
+    // For completed jobs: sort by completion time descending (most recently finished on top), then ID descending
+    if (secKey === 'completed') {
+      return [...items].sort((a, b) => {
+        const aComp = a.completed_date ? new Date(a.completed_date).getTime() : 0;
+        const bComp = b.completed_date ? new Date(b.completed_date).getTime() : 0;
+        if (aComp !== bComp) return bComp - aComp;
+        return b.id - a.id;
+      });
+    }
+
+    // For pending/in-progress jobs: sort by urgency first, then earliest deadline, then ID descending
     return [...items].sort((a, b) => {
       const aRank = getUrgencyMeta(a.urgency).rank;
       const bRank = getUrgencyMeta(b.urgency).rank;
@@ -2864,8 +2875,8 @@
       return card;
     }
 
-    const sortedItems = sortReportGroupByPriority(items);
     const secKey = groupConfig.key || 'pending';
+    const sortedItems = sortReportGroupItems(items, secKey);
     const pageSize = getEffectivePageSize(secKey);
     const totalItems = sortedItems.length;
     const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
@@ -3244,7 +3255,8 @@
     inspStatusBadge.className = 'sheet-status-badge status-pill ' + statusMeta.cls;
 
     inspTitle.textContent = req.report_title;
-    inspCreatedAt.textContent = `ยื่นคำขอเมื่อ: ${formatThaiDateShort(req.created_at)} เวลา ${formatTime(req.created_at)}`;
+    const createdMeta = formatThaiDateTimeParts(req.created_at);
+    inspCreatedAt.textContent = `ยื่นคำขอเมื่อ: ${createdMeta.full}`;
 
     if (inspHeroPct) inspHeroPct.textContent = `${pctVal}%`;
     if (inspHeroBar) inspHeroBar.style.width = `${pctVal}%`;
